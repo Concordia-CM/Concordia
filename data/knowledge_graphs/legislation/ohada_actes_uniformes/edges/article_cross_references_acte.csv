@@ -1,0 +1,88 @@
+source_article_id,source_acte,target_acte,keyword_matched
+AUSCGIE-Art153,AUSCGIE,AUA,arbitrage
+AUSCGIE-Art353,AUSCGIE,AUS,suretes
+AUSCGIE-Art437,AUSCGIE,AUS,suretes
+AUSCGIE-Art440,AUSCGIE,AUS,suretes
+AUSCGIE-Art752,AUSCGIE,AUS,suretes
+AUSCGIE-Art809,AUSCGIE,AUS,suretes
+AUSCGIE-Art822,AUSCGIE,AUS,suretes
+AUDCG-Art1,AUDCG,AUSCGIE,groupement
+AUDCG-Art3,AUDCG,AUSCGIE,sociétés commerciales
+AUDCG-Art11,AUDCG,AUPC,procédures collectives
+AUDCG-Art13,AUDCG,AUSCGIE,sociétés commerciales
+AUDCG-Art15,AUDCG,AUSCGIE,sociétés commerciales
+AUDCG-Art34,AUDCG,AUS,sûretés
+AUDCG-Art35,AUDCG,AUSCGIE,sociétés commerciales
+AUDCG-Art35,AUDCG,AUS,sûretés
+AUDCG-Art36,AUDCG,AUA,arbitrage
+AUDCG-Art38,AUDCG,AUS,sûretés
+AUDCG-Art40,AUDCG,AUS,sûretés
+AUDCG-Art41,AUDCG,AUS,sûretés
+AUDCG-Art43,AUDCG,AUPC,apurement du passif
+AUDCG-Art46,AUDCG,AUSCGIE,groupement
+AUDCG-Art48,AUDCG,AUSCGIE,sociétés commerciales
+AUDCG-Art59,AUDCG,AUSCGIE,sociétés commerciales
+AUDCG-Art67,AUDCG,AUS,sûretés
+AUDCG-Art70,AUDCG,AUS,sûretés
+AUDCG-Art72,AUDCG,AUS,sûretés
+AUDCG-Art73,AUDCG,AUS,sûretés
+AUDCG-Art76,AUDCG,AUA,arbitrage
+AUDCG-Art87,AUDCG,AUS,sûretés
+AUDCG-Art97,AUDCG,AUSCGIE,sociétés commerciales
+AUDCG-Art97,AUDCG,AUS,sûretés
+AUDCG-Art144,AUDCG,AUPSRVE,recouvrement
+AUDCG-Art168,AUDCG,AUS,sûretés
+AUDCG-Art189,AUDCG,AUPC,procédures collectives
+AUDCG-Art276,AUDCG,AUS,sûretés
+AUS-Art9,AUS,AUPC,apurement du passif
+AUS-Art29,AUS,AUPC,procédures collectives
+AUS-Art104,AUS,AUPSRVE,voies d'exécution
+AUS-Art137,AUS,AUPSRVE,procédures simplifiées
+AUS-Art142,AUS,AUPSRVE,procédures simplifiées
+AUS-Art143,AUS,AUSCGIE,sociétés commerciales
+AUS-Art158,AUS,AUPSRVE,recouvrement
+AUS-Art164,AUS,AUPSRVE,procédures simplifiées
+AUS-Art181,AUS,AUPSRVE,recouvrement
+AUS-Art210,AUS,AUPC,apurement du passif
+AUPC-Art4-19,AUPC,AUPSRVE,recouvrement
+AUPC-Art5-2,AUPC,AUS,sûretés
+AUPC-Art6-1,AUPC,AUS,sûretés
+AUPC-Art9,AUPC,AUPSRVE,voies d'exécution
+AUPC-Art26,AUPC,AUS,sûretés
+AUPC-Art48,AUPC,AUS,sûretés
+AUPC-Art52,AUPC,AUPSRVE,recouvrement
+AUPC-Art63,AUPC,AUS,sûretés
+AUPC-Art99,AUPC,AUS,sûretés
+AUPC-Art103,AUPC,AUS,sûretés
+AUPC-Art118,AUPC,AUS,sûretés
+AUPC-Art127,AUPC,AUS,sûretés
+AUPC-Art131,AUPC,AUS,sûretés
+AUPC-Art133,AUPC,AUS,sûretés
+AUPC-Art147,AUPC,AUPSRVE,recouvrement
+AUPC-Art150,AUPC,AUPSRVE,recouvrement
+AUPC-Art150,AUPC,AUS,sûretés
+AUPC-Art166,AUPC,AUS,sûretés
+AUPC-Art167,AUPC,AUS,sûretés
+AUPC-Art229,AUPC,AUS,sûretés
+AUPC-Art233,AUPC,AUS,sûretés
+AUPC-Art256-19,AUPC,AUPSRVE,voies d'exécution
+AUPC-Art256-19,AUPC,AUS,sûretés
+AUPC-Art256-20,AUPC,AUPSRVE,voies d'exécution
+AUPC-Art256-20,AUPC,AUS,sûretés
+AUCTMR-Art25,AUCTMR,AUA,arbitrage
+AUCTMR-Art26,AUCTMR,AUA,arbitrage
+AUDCIF-Art2,AUDCIF,AUSCGIE,sociétés commerciales
+AUDCIF-Art2,AUDCIF,AUDCG,droit commercial général
+AUDCIF-Art2,AUDCIF,AUSCOOP,coopératives
+AUDCIF-Art8,AUDCIF,AUSCGIE,sociétés commerciales
+AUDCIF-Art18,AUDCIF,AUSCGIE,groupement
+AUDCIF-Art73,AUDCIF,AUSCGIE,groupement
+AUSCOOP-Art1,AUSCOOP,AUSCGIE,groupement
+AUSCOOP-Art4,AUSCOOP,AUSCGIE,groupement
+AUSCOOP-Art70,AUSCOOP,AUDCG,droit commercial général
+AUSCOOP-Art118,AUSCOOP,AUA,arbitrage
+AUSCOOP-Art151,AUSCOOP,AUSCGIE,groupement
+AUSCOOP-Art173,AUSCOOP,AUS,sûretés
+AUSCOOP-Art196,AUSCOOP,AUSCGIE,sociétés commerciales
+AUSCOOP-Art369,AUSCOOP,AUPC,procédures collectives
+AUSCOOP-Art387,AUSCOOP,AUSCGIE,groupement
