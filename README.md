@@ -1,103 +1,205 @@
-# Concordia ⚖️🤖 (ITU AI for Good Lab)
+# Concordia
 
-**Système Multi-Agents Autonome d'Audit et de Conformité Juridique, Fiscale et Bancaire (Zone OHADA / CEMAC)**
+**Système multi-agentique d'audit et de conformité dans l'espace OHADA-CEMAC, en commençant par le Cameroun.**
 
-[![ITU-T Y.3172](https://img.shields.io/badge/ITU--T-Y.3172%20Aligned-blue.svg)](https://www.itu.int)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%252B-blue.svg)](https://www.python.org/)
+Concordia est un prototype conçu pour le **AI for Good Sandbox Hackathon – United Arab Emirates**, organisé par l'ITU AI for Good Lab. Il explore comment une base de connaissances juridique et réglementaire contextualisée peut alimenter des agents IA spécialisés, coordonnés pour analyser des situations de conformité et rendre leurs conclusions vérifiables.
 
----
+> **État du projet :** le dépôt contient actuellement des pipelines d'ingestion et de préparation de données juridiques. La base vectorielle ou graphe interrogeable, les agents, leur orchestration, les scénarios interactifs et l'interface d'audit restent à implémenter. Concordia est donc un prototype en construction, et non une solution complète ou une certification de conformité à ITU-T Y.3172.
 
-## 📌 1. Vue d'ensemble du Projet
+## Contexte du hackathon
 
-**Concordia** est un système multi-agents intelligent, souverain et auditable conçu pour automatiser l'analyse, l'évaluation et l'audit de conformité réglementaire au sein de l'espace **OHADA** (Organisation pour l'Harmonisation en Afrique du Droit des Affaires) et de la zone **CEMAC / COBAC** (Commission Bancaire de l'Afrique Centrale).
+Le hackathon vise la création d'une infrastructure ouverte de connaissances contextualisées par pays et d'agents IA capables d'opérer dans des domaines concrets, en tenant compte des politiques, des lois et des responsabilités institutionnelles. La compétition encourage notamment :
 
-Dans un contexte économique marqué par la complexité et l'enchevêtrement des normes (Actes Uniformes, instructions BEAC, circulaires COBAC, législations nationales et fiscalité locale), Concordia remédie aux asymétries d'information et aux risques juridiques en orchestrant des agents spécialisés dotés d'une base de connaissances vectorisée et structurée.
+- des bases de connaissances fondées sur des documents publics nationaux et correctement sourcées ;
+- des agents spécialisés, par exemple conseiller juridique ou politique, représentant institutionnel ou agent applicatif ;
+- des simulations de situations réalistes, avec des informations partielles et distribuées progressivement ;
+- la coordination entre agents ayant des rôles et mandats différents ;
+- la journalisation et des traces de justification vérifiables : références consultées, étapes, décisions et résultats des agents ;
+- l'analyse des lacunes de politiques, de réglementations, de standards et de coordination, éclairée par des exemples internationaux.
 
----
+Concordia applique cette approche à l'audit et à la conformité juridiques, fiscales et bancaires. Le point de départ est le Cameroun, avec les textes et institutions pertinents pour les espaces OHADA et CEMAC/COBAC. Le périmètre sera étendu au rythme de la constitution et de la validation des sources.
 
-## 🏛️ 2. Alignement avec l'Architecture ITU-T Y.3172
+La page officielle décrit les critères d'évaluation et les livrables attendus : [AI for Good Sandbox Hackathon – United Arab Emirates](https://aiforgood.itu.int/event/ai-for-good-sandbox-hackathon-united-arab-emirates/).
 
-L'architecture technique de Concordia est strictement alignée sur le cadre standardisé de déploiement de l'apprentissage automatique et de l'IA de l'UIT (**ITU-T Y.3172**), garantissant interopérabilité, gouvernance et traçabilité de bout en bout :
+## Problème et proposition
 
-| Composant ITU-T Y.3172 | Module Concordia | Implémentation Technique & Rôle |
-| :--- | :--- | :--- |
-| **SRC** (Source) | `01_RAW_STORAGE/` | Collecte sécurisée des corpus documentaires bruts (PDF juridiques, codes généraux, traités). |
-| **C & PP** (Collector / Preprocessing) | `src/ingestion/` | Pipelines d'extraction (`PyMuPDF`), OCR de secours (`PyTesseract`) et chunking sémantique en JSON. |
-| **M** (Model) | `src/rag/` | Moteur de recherche hybride (BM25 + embeddings vectoriels) hébergeant la base de connaissances. |
-| **P** (Policy / Poset de Primauté) | `src/graph/` & `src/agents/` | Graphe de connaissances (`Neo4j`) modélisant la hiérarchie des normes (OHADA > COBAC > Lois nationales). |
-| **D** (Distributor) | `src/audit/` | Mécanismes de traçabilité, journaux d'audit et consignation de la chaîne de pensée (*Chain-of-Thought*). |
-| **SINK** (Inference Target) | `src/agents/` & Interface | Restitution des rapports de non-conformité, alertes de risques et recommandations correctives. |
+Les équipes d'audit et de conformité doivent confronter des documents de nature et de portée différentes : textes juridiques, réglementation sectorielle, règles institutionnelles, politiques et procédures. Une réponse utile doit non seulement repérer une règle pertinente, mais aussi expliquer son application, signaler les incertitudes et permettre à un humain de vérifier les sources.
 
----
+Concordia vise à transformer ces sources en une base de connaissances exploitable par des agents coordonnés. Dans une démonstration cible, un utilisateur soumet un dossier ou un scénario de conformité ; les agents examinent chacun les éléments correspondant à leur rôle, confrontent leurs conclusions aux sources, puis produisent un rapport d'audit traçable et soumis à validation humaine.
 
-## 👥 3. Rôles et Orchestration Multi-Agents
+Les résultats sont une aide à l'analyse et ne remplacent ni un avis juridique professionnel ni une décision d'une autorité compétente.
 
-Concordia simule un écosystème institutionnel et décisionnel à travers plusieurs agents interconnectés :
-* **Le Conseiller Juridique et Politique** : Analyse la conformité des statuts, contrats et clauses au regard du droit des affaires OHADA.
-* **L'Auditeur Bancaire et Prudentiel (COBAC)** : Évalue l'exposition aux risques réglementaires, le respect des ratios prudentiels et la conformité des flux de change CEMAC.
-* **L'Acteur Institutionnel / Régulateur** : Joue le rôle d'arbitre inter-domaines en cas de scénarios d'erreurs ou de conflits normatifs.
+## Critères de réussite visés
 
----
+La page du hackathon met notamment l'accent sur les aspects suivants. Ils serviront de critères pour les futures validations de Concordia :
 
-## 📂 4. Structure Détaillée du Dépôt
+- **Qualité de la base** : couverture, exactitude, provenance et structuration des textes ; capacité à retrouver le contexte réglementaire pertinent.
+- **Qualité des agents** : pertinence des analyses dans des scénarios réalistes, respect des sources, des mandats et du protocole de coordination.
+- **Analyse des lacunes** : identification des ambiguïtés de responsabilités, des écarts de politiques ou de normes et des problèmes de coordination, avec des exemples internationaux pertinents.
+- **Auditabilité** : références attribuées aux sources et traces d'exécution suffisamment détaillées pour permettre une revue humaine.
+- **Alignement architectural** : prise en compte d'ITU-T Y.3172 et du cadre de préparation à l'IA de l'ITU, sans prétendre à une conformité non démontrée.
+
+## Architecture cible
 
 ```text
-concordia/
-│
-├── .github/workflows/          # Pipelines CI/CD et tests automatisés
-├── 01_RAW_STORAGE/             # [SRC] Corpus documentaire brut (exclu de Git via .gitignore)
-├── 02_PROCESSED_JSON/          # [PP] Données nettoyées, chunkées et prêtes pour la KB
-├── docs/                       # 📄 Documentation officielle & Rapport technique (max 5 pages)
-│   ├── technical_report.md     # Rapport complet soumis pour l'ITU
-│   └── ITU_Y3172_mapping.md    # Documentation détaillée de l'alignement normatif
-├── src/                        # Code source du système
-│   ├── pipeline/               # Orchestration du pipeline ITU-T Y.3172
-│   ├── agents/                 # Logique des agents (Juridique, Bancaire, Régulateur)
-│   ├── rag/                    # Pipeline RAG et moteurs de recherche
-│   ├── graph/                  # Nœud P : Graphe Neo4j pour la hiérarchie des normes
-│   └── audit/                  # Traçabilité, logging et chaînes de pensée
-├── tests/                      # Tests unitaires et d'intégration
-├── requirements.txt            # Dépendances Python du projet
-└── README.md                   # Documentation principale
+Textes, règlements, décisions, politiques et documents métier
+                            |
+                            v
+       Collecte, OCR, extraction et normalisation
+                            |
+                            v
+ Base de connaissances versionnée, sourcée et interrogeable
+          (index de recherche/RAG et relations juridiques)
+                            |
+                            v
+     Orchestrateur et agents spécialisés par mandat
+                            |
+             <--- scénarios progressifs --->
+                            |
+                            v
+ Rapport d'audit, références, lacunes et validation humaine
+                            |
+                            v
+         Journal d'audit et traçabilité des échanges
+```
 
-🚀 5. Guide d'Installation et de Démarrage Rapide
-Étape 1 : Cloner le dépôt et configurer l'environnement
-Bash
+Cette architecture reprend le parcours présenté pour le projet : **documents sources → base de connaissances utilisable par les modèles → application de démonstration**. L'objectif est de construire une base réellement interrogeable par les agents, et non de simplement stocker ou citer des documents.
 
-git clone [https://github.com/NOM_DE_TON_ORGANISATION/concordia.git](https://github.com/NOM_DE_TON_ORGANISATION/concordia.git)
-cd concordia
+| Étape cible | Rôle dans Concordia | État actuel |
+|---|---|---|
+| Sources (SRC) | Documents publics et documents métier autorisés, avec juridiction, date, provenance et licence | Des PDF juridiques sont présents localement ; le corpus doit être étendu et sa provenance documentée |
+| Collecte et prétraitement (C/PP) | Extraction PDF, OCR si nécessaire, normalisation et segmentation | Pipelines PDF et CCJA disponibles |
+| Base de connaissances | Indexation vectorielle et/ou plein texte, métadonnées et relations juridiques | L'importeur CCJA prépare des JSONL et des segments ; aucun index interrogeable n'est créé par ces scripts |
+| Modèles et agents (M) | Recherche augmentée par les sources, analyse de conformité et rôles institutionnels spécialisés | À implémenter |
+| Politique et coordination | Mandats, règles de priorité, protocole d'échange et désaccords entre agents | À implémenter |
+| Scénarios et application | Événements publiés progressivement, interaction utilisateur et restitution | À implémenter |
+| Audit et supervision | Sources citées, décisions observables, limites, validation et journal d'audit | À implémenter |
 
-# Création et activation de l'environnement virtuel
-python3 -m venv venv
-source venv/bin/activate
+### Alignement avec ITU-T Y.3172
 
-Étape 2 : Installer les dépendances
-Bash
+Concordia prend **ITU-T Y.3172** (*Architectural overview of machine learning in future networks including IMT-2020*) comme référence d'architecture pour structurer le cycle allant des sources et du prétraitement aux modèles, à leur utilisation et au suivi. La correspondance détaillée entre les composants de la norme et l'implémentation Concordia reste à préciser et à valider au fur et à mesure du développement. Cet alignement est un objectif de conception, pas une conformité déjà démontrée.
 
-pip install --upgrade pip
+Le projet entend également prendre en compte les perspectives du [ITU AI Readiness Framework](https://www.itu.int/dms_pub/itu-t/opb/ai4g/T-AI4G-AI4GOOD-2025-6-PDF-E.pdf), notamment l'ouverture et la gouvernance des données, l'adaptation au contexte local, l'inclusion, la supervision humaine et les contraintes d'infrastructure.
+
+## Agents envisagés
+
+Les rôles suivants décrivent la cible fonctionnelle ; ils ne sont pas encore implémentés :
+
+- **Agent d'audit** : analyse les éléments du dossier et relève les points de conformité, les écarts et les informations manquantes.
+- **Agent juridique et politique** : recherche les textes applicables, leurs références et leur portée, et signale les incertitudes ou conflits à vérifier.
+- **Agent institutionnel** : examine une situation depuis le mandat d'une autorité ou d'un acteur institutionnel défini.
+- **Orchestrateur** : distribue les informations et tâches, coordonne les analyses indépendantes, conserve les désaccords et prépare une synthèse.
+
+La page du hackathon demande une journalisation d'audit et des traces de raisonnement. La conception devra éviter de confondre une génération de texte explicative avec une preuve du raisonnement interne d'un modèle. La traçabilité visée repose sur des éléments vérifiables : sources récupérées, citations, entrées et sorties d'agents, résumés de justification, étapes du scénario, horodatage et décisions de validation humaine.
+
+## Démonstration envisagée
+
+Une démonstration du projet pourra prendre la forme d'un scénario d'audit de conformité. Les événements et pièces du dossier seront communiqués par étapes, afin que les agents traitent une situation où les informations ne sont pas nécessairement complètes ni distribuées simultanément. Le rapport final devra distinguer :
+
+1. les faits et pièces reçus ;
+2. les règles et documents retrouvés, avec leurs références ;
+3. les analyses produites par chaque rôle ;
+4. les convergences, désaccords, lacunes et points non vérifiés ;
+5. les recommandations ou actions proposées, avec les limites et la validation humaine requise.
+
+Les scénarios et résultats devront être évalués sur des cas représentatifs, sans présenter les sorties du prototype comme des décisions juridiques définitives.
+
+## État des lieux du dépôt
+
+### Disponible
+
+- [`src/ingestion/ingest.py`](src/ingestion/ingest.py) : extraction et segmentation de PDF juridiques ; les sorties JSON sont nommées à partir de l'empreinte du fichier. À la relance, un PDF inchangé dont la sortie est valide est ignoré ; un PDF modifié ou une sortie absente ou invalide entraîne un nouveau traitement.
+- [`src/ingestion/ingest_ccja.py`](src/ingestion/ingest_ccja.py) : conversion d'un corpus CCJA CSV en documents JSONL et en segments de recherche ; rattachement facultatif de relations déjà présentes dans des fichiers CSV du graphe.
+- [`requirements.txt`](requirements.txt) : dépendances envisagées pour le projet, dont des bibliothèques d'API, de traitement documentaire, de recherche vectorielle et de graphe.
+
+### À construire ou valider
+
+- index vectoriel/plein texte ou graphe réellement consultable par les agents ;
+- ingestion complète et documentée des sources nationales et régionales pertinentes ;
+- orchestrateur, agents, mandats et protocole de coordination ;
+- scénarios interactifs à événements progressifs ;
+- application de démonstration et génération du rapport d'audit ;
+- journalisation structurée, citations de sources, supervision et évaluation ;
+- tests de qualité de recherche, de conformité des réponses, de robustesse et de performance ;
+- documentation technique finale et démonstration vidéo, selon les exigences et le calendrier officiels.
+
+Les répertoires `src/agents/`, `src/orchestrator/`, `src/policy/` et `src/sink/` ainsi que plusieurs documents de conception sont actuellement des emplacements de projet vides ; leur présence ne signifie pas que les composants associés sont déjà fonctionnels.
+
+## Données et provenance
+
+Les scripts d'ingestion utilisent les chemins suivants par défaut :
+
+- PDF juridiques : `data/raw_legal_docs/` ;
+- corpus CCJA : `data/knowledge_graphs/ccja_jurisprudence/ccja_corpus/full_dataset.csv` ;
+- relations CCJA : `data/knowledge_graphs/ccja_jurisprudence/ccja_corpus/ohada_graph/` ;
+- documents et segments JSON/JSONL : `02_PROCESSED_JSON/`.
+
+Le corpus CCJA est traité séparément des PDF. Les segments produits par l'importeur peuvent servir de base à une étape ultérieure d'indexation, mais leur création ne construit pas à elle seule une base vectorielle.
+
+Pour chaque jeu de données publié ou partagé, documenter au minimum l'organisation source, l'URL ou la référence, la juridiction, la date/version, la licence et les transformations appliquées. Vérifier les droits de réutilisation et de redistribution avant de publier des documents ou des résultats dérivés. Les sorties produites localement ne sont pas nécessairement incluses dans le dépôt Git.
+
+## Installation
+
+Prérequis : Python 3.10 ou plus récent. Pour l'OCR des PDF numérisés, installer également Tesseract et les données de langue française sur Ubuntu :
+
+```bash
+sudo apt install tesseract-ocr tesseract-ocr-fra
+```
+
+Créer un environnement virtuel et installer les dépendances :
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+```
 
-Étape 3 : Configurer les variables d'environnement
-Bash
+## Utilisation des pipelines disponibles
 
-cp .env.example .env
-# Éditer le fichier .env pour y renseigner vos clés API et identifiants Neo4j
+Lancer le pipeline PDF depuis la racine du dépôt :
 
-🛠️ 6. Contribution et Équipe
+```bash
+python -m src.ingestion.ingest
+```
 
-Projet développé par l'équipe de recherche de l'Université de Yaoundé I dans le cadre du hackathon ITU AI for Good Lab.
+Le pipeline parcourt `data/raw_legal_docs/` et écrit un fichier JSON par PDF traité dans `02_PROCESSED_JSON/`. Les documents déjà traités et inchangés sont sautés à la relance.
 
-Pour contribuer, veuillez suivre le workflow par branches :
+Importer le corpus CCJA avec les chemins par défaut :
 
-    Créez une branche thématique : git checkout -b feature/nom-de-la-fonctionnalite
+```bash
+python -m src.ingestion.ingest_ccja
+```
 
-    Validez vos modifications : git commit -m "feat: description claire de l'apport"
+Les fichiers produits par défaut sont :
 
-    Poussez sur le dépôt distant : git push origin feature/nom-de-la-fonctionnalite
+- `02_PROCESSED_JSON/ccja-decisions.jsonl` : une décision normalisée par ligne ;
+- `02_PROCESSED_JSON/ccja-search-chunks.jsonl` : segments de texte associés à leur décision et à leur champ source.
 
-    Ouvrez une Pull Request vers la branche main pour revue par les pairs.
+Les paramètres `--csv`, `--graph-dir`, `--output`, `--chunks-output`, `--chunk-size` et `--chunk-overlap` permettent d'adapter les chemins et le découpage. Voir l'aide de la commande :
 
-📜 7. Licence
+```bash
+python -m src.ingestion.ingest_ccja --help
+```
 
-Distribué sous licence MIT. Voir le fichier LICENSE pour plus d'informations.
+## Livrables de la compétition
+
+Selon la [page officielle du hackathon](https://aiforgood.itu.int/event/ai-for-good-sandbox-hackathon-united-arab-emirates/), les éléments de soumission comprennent :
+
+1. un rapport technique de cinq pages maximum ;
+2. le dépôt GitHub du projet ;
+3. une base de connaissances contenant politiques, réglementations et stratégies ;
+4. facultativement, une vidéo de démonstration de sept minutes maximum (requise pour les équipes présélectionnées selon la page).
+
+Le code de création de la base, la base elle-même, les rapports et la démonstration devront être préparés et vérifiés avant soumission. Consulter la page officielle pour les dates, modalités, règles d'équipe et éventuelles mises à jour.
+
+## Références
+
+- [AI for Good Sandbox Hackathon – United Arab Emirates](https://aiforgood.itu.int/event/ai-for-good-sandbox-hackathon-united-arab-emirates/)
+- [Recommandation ITU-T Y.3172](https://www.itu.int/rec/T-REC-Y.3172/en)
+- [ITU AI Readiness Framework](https://www.itu.int/dms_pub/itu-t/opb/ai4g/T-AI4G-AI4GOOD-2025-6-PDF-E.pdf)
+- [ITU AI for Good Lab](https://aiforgood.itu.int/)
+
+## Équipe
+
+Projet développé par l'équipe de l'Université de Yaoundé I pour l'ITU AI for Good.

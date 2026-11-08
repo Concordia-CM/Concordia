@@ -1,0 +1,75 @@
+{
+  "record_id": "610-07-20-loi-du-20-juillet-2020-loi-de-finance-2020-modifications-7fc82bc8",
+  "document_title": "610.07.20 Loi du 20 juillet 2020 Loi de finance 2020 modifications",
+  "source_file": "610.07.20-Loi-du-20-juillet-2020_Loi-de-finance-2020_modifications.pdf",
+  "domain": "Finances_Publiques",
+  "entity_type": "Legal_Document",
+  "content": "REPUBLIQUE DU CAMEROUN PAIX-TRAVAIL- PATRIE\nÜ O S LOI N° 2 0 L O / DU 2 O JUIL 2020 ------------- ----------\nPORTANT RATIFICATION DE L'ORDONNANCE N° 2020/001\nDU 03 JUIN 2020 MODIFIANT ET COMPLETANT CERTAINES\nDISPOSITIONS DE LA LOI N° 2019/023 DU 24 DECEMBRE 2019\nPORTANT LOI DE FINANCES DE LA REPUBLIQUE DU CAMEROUN\nPOUR L'EXERCICE 2020\nLe Parlement a délibéré et adopté, le Président\nde la République promulgue la loi dont la teneur\nsuit:\nARTICLE 1 er __ Est ratifiée, !'Ordonnance n° 2020/001 du 03 juin 2020 modifiant\net complétant certaines dispositions de la loi n° 2019/023 du 24 décembre 2019\nportant loi de finances de la République du Cameroun pour l'exercice 2020.\nARTICLE 2.- La présente loi sera enregistrée, publiée suivant la procédure\nd'urgence, puis insérée au Journal Officiel en français et en anglais./-\nPRESIDENCE Of LA u,u1L1QUE PRE519ENCV O.F THE UP Yaoundé, le 2 0 JUIL 2020\nSECRETARIAT GOI\nSUYIC( DU FICHIER LEGISL\nLEGISLATIYl AND STATUT DE LA REPUBLIQUE, COPIE\nCE\n.",
+  "sections": [
+    {
+      "section_id": "610-07-20-loi-du-20-juillet-2020-loi-de-finance-2020-modifications-7fc82bc8-preamble",
+      "entity_type": "Document_Preamble",
+      "title": "Préambule",
+      "content": "REPUBLIQUE DU CAMEROUN PAIX-TRAVAIL- PATRIE\nÜ O S LOI N° 2 0 L O / DU 2 O JUIL 2020 ------------- ----------\nPORTANT RATIFICATION DE L'ORDONNANCE N° 2020/001\nDU 03 JUIN 2020 MODIFIANT ET COMPLETANT CERTAINES\nDISPOSITIONS DE LA LOI N° 2019/023 DU 24 DECEMBRE 2019\nPORTANT LOI DE FINANCES DE LA REPUBLIQUE DU CAMEROUN\nPOUR L'EXERCICE 2020\nLe Parlement a délibéré et adopté, le Président\nde la République promulgue la loi dont la teneur\nsuit:",
+      "metadata": {
+        "source_page_start": 1,
+        "source_page_end": 1,
+        "ocr_used": false,
+        "ocr_pages": [],
+        "hierarchy": {}
+      }
+    },
+    {
+      "section_id": "610-07-20-loi-du-20-juillet-2020-loi-de-finance-2020-modifications-7fc82bc8-article-1",
+      "entity_type": "Article",
+      "title": "Article 1",
+      "article_number": "1",
+      "hierarchy_path": [],
+      "content": "ARTICLE 1 er __ Est ratifiée, !'Ordonnance n° 2020/001 du 03 juin 2020 modifiant\net complétant certaines dispositions de la loi n° 2019/023 du 24 décembre 2019\nportant loi de finances de la République du Cameroun pour l'exercice 2020.",
+      "metadata": {
+        "standard_type": "ITU_Readiness_Record",
+        "compliance_level": "mandatory",
+        "source_sha256": "7fc82bc8cd3b7d63537e826c8885a305d4a34fe2bb1dd98fe1b6fb2fa97ddd04",
+        "ingested_at": "2026-11-08T22:42:52.326851+00:00",
+        "source_page_count": 2,
+        "source_page_start": 2,
+        "source_page_end": 2,
+        "ocr_used": false,
+        "ocr_pages": [],
+        "hierarchy": {}
+      }
+    },
+    {
+      "section_id": "610-07-20-loi-du-20-juillet-2020-loi-de-finance-2020-modifications-7fc82bc8-article-2",
+      "entity_type": "Article",
+      "title": "Article 2",
+      "article_number": "2",
+      "hierarchy_path": [],
+      "content": "ARTICLE 2.- La présente loi sera enregistrée, publiée suivant la procédure\nd'urgence, puis insérée au Journal Officiel en français et en anglais./-\nPRESIDENCE Of LA u,u1L1QUE PRE519ENCV O.F THE UP Yaoundé, le 2 0 JUIL 2020\nSECRETARIAT GOI\nSUYIC( DU FICHIER LEGISL\nLEGISLATIYl AND STATUT DE LA REPUBLIQUE, COPIE\nCE\n.",
+      "metadata": {
+        "standard_type": "ITU_Readiness_Record",
+        "compliance_level": "mandatory",
+        "source_sha256": "7fc82bc8cd3b7d63537e826c8885a305d4a34fe2bb1dd98fe1b6fb2fa97ddd04",
+        "ingested_at": "2026-11-08T22:42:52.326851+00:00",
+        "source_page_count": 2,
+        "source_page_start": 2,
+        "source_page_end": 2,
+        "ocr_used": false,
+        "ocr_pages": [],
+        "hierarchy": {}
+      }
+    }
+  ],
+  "metadata": {
+    "standard_type": "ITU_Readiness_Record",
+    "compliance_level": "mandatory",
+    "source_sha256": "7fc82bc8cd3b7d63537e826c8885a305d4a34fe2bb1dd98fe1b6fb2fa97ddd04",
+    "ingested_at": "2026-11-08T22:42:52.326851+00:00",
+    "source_page_count": 2,
+    "section_count": 3,
+    "document_category": "legal_document",
+    "segmentation_strategy": "articles",
+    "ocr_used": false,
+    "ocr_pages": []
+  }
+}

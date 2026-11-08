@@ -1,0 +1,41 @@
+{
+  "dataset_name": "ohada_ccja_corpus",
+  "version": "1.0.0",
+  "description": "OHADA CCJA Court Decisions Corpus for African Legal NLP",
+  "language": [
+    "fr"
+  ],
+  "license": "CC-BY-4.0",
+  "total_cases": 4059,
+  "splits": {
+    "train": 2841,
+    "test": 609,
+    "validation": 609
+  },
+  "date_range": "1997-2023",
+  "legal_domains": 16,
+  "features": [
+    "case_id",
+    "case_number",
+    "date",
+    "year",
+    "legal_domain",
+    "case_type",
+    "jurisdiction",
+    "formation",
+    "plaintiff",
+    "defendant",
+    "articles_cited",
+    "dispute_summary",
+    "reasoning",
+    "ruling",
+    "full_text",
+    "source"
+  ],
+  "tasks": [
+    "legal_domain_classification",
+    "legal_judgment_summarization",
+    "legal_reasoning_extraction",
+    "legal_named_entity_recognition"
+  ]
+}
