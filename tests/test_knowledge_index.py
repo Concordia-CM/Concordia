@@ -72,6 +72,27 @@ class KnowledgeBaseTests(unittest.TestCase):
         self.assertIn("p. 12-13", hits[0].citation)
         self.assertIn("Registre du commerce", hits[0].text)
 
+    def test_rccm_search_prioritizes_registration_hierarchy_over_mentions(self) -> None:
+        commercial_law_path = (
+            Path(__file__).resolve().parents[1]
+            / "02_PROCESSED_JSON"
+            / "ohada-acte-uniforme-2010-droit-commercial-c554eccc.json"
+        )
+        self.processed_dir.joinpath("test-law.json").unlink()
+        shutil.copyfile(commercial_law_path, self.processed_dir / commercial_law_path.name)
+        self._build()
+
+        hits = self.knowledge_base.search(
+            "Quelles dispositions concernent l'immatriculation au RCCM ?",
+            limit=5,
+            source_scope="legal_texts",
+        )
+
+        self.assertTrue({"44", "45", "46", "47"}.issubset(
+            {hit.article_number for hit in hits}
+        ))
+        self.assertNotIn("257-1", {hit.article_number for hit in hits})
+
     def test_rebuild_is_idempotent(self) -> None:
         first = self._build()
         second = self._build()
@@ -237,6 +258,148 @@ class KnowledgeBaseTests(unittest.TestCase):
             {"cited_articles", "cited_cases"},
         )
 
+    def test_source_scope_separates_law_texts_doctrine_and_ccja_cases(self) -> None:
+        doctrine = {
+            "record_id": "doctrine-sureties",
+            "document_title": "Cours de droit des sûretés OHADA",
+            "source_file": "cours-suretes.pdf",
+            "domain": "doctrine et manuel",
+            "entity_type": "Legal_Document",
+            "metadata": {"document_category": "doctrine_or_manual"},
+            "sections": [
+                {
+                    "section_id": "section-1",
+                    "content": (
+                        "Dispositions concernant l'immatriculation au RCCM "
+                        "pour la société."
+                    ),
+                    "metadata": {"document_category": "doctrine_or_manual"},
+                }
+            ],
+        }
+        ccja_documents = self.root / "ccja-decisions.jsonl"
+        ccja_chunks = self.root / "ccja-chunks.jsonl"
+        ccja_documents.write_text(
+            json.dumps(
+                {
+                    "record_id": "OHADA-CCJA-00099",
+                    "case_id": "OHADA-CCJA-00099",
+                    "document_title": "Arrêt CCJA n° 99/2020",
+                    "source_file": "ccja.csv",
+                    "domain": "OHADA",
+                    "entity_type": "CCJA_Decision",
+                    "metadata": {},
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        ccja_chunks.write_text(
+            json.dumps(
+                {
+                    "chunk_id": "OHADA-CCJA-00099:full_text:1",
+                    "case_id": "OHADA-CCJA-00099",
+                    "source_field": "full_text",
+                    "text": (
+                        "Dispositions concernant l'immatriculation au RCCM "
+                        "pour la société."
+                    ),
+                    "metadata": {},
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (self.processed_dir / "doctrine.json").write_text(
+            json.dumps(doctrine, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        preamble = {
+            "record_id": "commercial-law-toc",
+            "document_title": "Acte uniforme portant droit commercial",
+            "source_file": "droit-commercial.pdf",
+            "domain": "OHADA",
+            "entity_type": "Legal_Document",
+            "metadata": {"document_category": "legal_document"},
+            "sections": [
+                {
+                    "section_id": "preamble",
+                    "title": "Préambule",
+                    "content": (
+                        "RCCM — dispositions concernant les conditions de "
+                        "l'immatriculation."
+                    ),
+                    "metadata": {"document_category": "legal_document"},
+                }
+            ],
+        }
+        (self.processed_dir / "preamble.json").write_text(
+            json.dumps(preamble, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        self._build_with_ccja(ccja_documents, ccja_chunks)
+
+        legal_hits = self.knowledge_base.search(
+            "dispositions immatriculation RCCM société",
+            source_scope="legal_texts",
+        )
+        case_hits = self.knowledge_base.search(
+            "dispositions immatriculation RCCM société",
+            source_scope="case_law",
+        )
+        all_hits = self.knowledge_base.search(
+            "dispositions immatriculation RCCM société",
+            source_scope="all",
+        )
+        class IdenticalEncoder:
+            def encode(self, sentences: list[str], **kwargs: object) -> np.ndarray:
+                del kwargs
+                return np.ones((len(sentences), 2), dtype=np.float32)
+
+        with patch(
+            "src.knowledge.index._load_text_encoder",
+            return_value=IdenticalEncoder(),
+        ):
+            self.knowledge_base.build_vectors("scope-test-model")
+            vector_hits = self.knowledge_base.search(
+                "dispositions immatriculation RCCM société",
+                retrieval_mode="vector",
+                source_scope="legal_texts",
+            )
+
+        self.assertTrue(legal_hits)
+        self.assertIn("test-law", {hit.record_id for hit in legal_hits})
+        self.assertTrue(legal_hits[0].article_number)
+        self.assertTrue(all(hit.entity_type != "CCJA_Decision" for hit in legal_hits))
+        self.assertTrue(
+            all(
+                hit.metadata["document"].get("document_category") != "doctrine_or_manual"
+                for hit in legal_hits
+            )
+        )
+        self.assertTrue(case_hits)
+        self.assertTrue(all(hit.entity_type == "CCJA_Decision" for hit in case_hits))
+        self.assertGreater(len(all_hits), len(legal_hits))
+        self.assertTrue(vector_hits)
+        self.assertTrue(
+            all(hit.entity_type != "CCJA_Decision" for hit in vector_hits)
+        )
+        self.assertTrue(
+            all(
+                hit.metadata["document"].get("document_category") != "doctrine_or_manual"
+                for hit in vector_hits
+            )
+        )
+
+    def _build_with_ccja(self, ccja_documents: Path, ccja_chunks: Path) -> None:
+        self.knowledge_base.build(
+            processed_dir=self.processed_dir,
+            ccja_documents=ccja_documents,
+            ccja_chunks=ccja_chunks,
+        )
+
     def test_retrieval_benchmark_reports_source_recall_and_citations(self) -> None:
         repository_root = Path(__file__).resolve().parents[1]
         corpus_dir = self.root / "verified-corpus"
@@ -255,15 +418,21 @@ class KnowledgeBaseTests(unittest.TestCase):
             ccja_documents=self.root / "missing-decisions.jsonl",
             ccja_chunks=self.root / "missing-chunks.jsonl",
         )
-        result = evaluate_retrieval(self.knowledge_base, cases, top_k=3)
+        result = evaluate_retrieval(self.knowledge_base, cases, top_k=5)
 
-        self.assertEqual(result["case_count"], 2)
+        self.assertEqual(result["case_count"], 12)
         self.assertEqual(result["hit_rate_at_k"], 1.0)
         self.assertEqual(result["mean_recall_at_k"], 1.0)
         self.assertEqual(result["mean_reciprocal_rank"], 1.0)
+        self.assertEqual(result["precision_at_k"], 0.25)
         self.assertEqual(result["citation_coverage_of_retrieved_relevant"], 1.0)
         self.assertGreaterEqual(result["mean_latency_ms"], 0)
-        self.assertTrue(all(case["relevant_ranks"] == [1] for case in result["cases"]))
+        self.assertTrue(result["cases"][2]["expected_before_distractors"])
+        self.assertEqual(result["cases"][2]["relevant_ranks"], [1, 2, 4, 5])
+        self.assertEqual(result["cases"][2]["distractor_ranks"], [])
+        self.assertTrue(
+            all(case["relevant_ranks"][0] == 1 for case in result["cases"])
+        )
 
 
 if __name__ == "__main__":

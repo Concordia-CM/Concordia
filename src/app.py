@@ -8,12 +8,17 @@ import sqlite3
 import sys
 from pathlib import Path
 
+if __package__ in (None, ""):
+    project_root = str(Path(__file__).resolve().parents[1])
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+from config.settings import Settings, get_settings
+from src.agents.institutional_agent import InstitutionalAgent
 from src.agents.legal_policy_agent import LegalPolicyAgent
 from src.knowledge.index import (
     DEFAULT_CCJA_CHUNKS,
     DEFAULT_CCJA_DOCUMENTS,
-    DEFAULT_DATABASE,
-    DEFAULT_EMBEDDING_MODEL,
     DEFAULT_PROCESSED_DIR,
     KnowledgeBase,
 )
@@ -21,6 +26,7 @@ from src.knowledge.evaluation import evaluate_retrieval, load_retrieval_cases
 from src.orchestrator.coordinator import run_scenario
 from src.orchestrator.intent_router import (
     DocumentAuditRequest,
+    InstitutionalAnalysisRequest,
     LegalSearchRequest,
     SUPPORTED_INTENTS,
     route_request,
@@ -28,14 +34,15 @@ from src.orchestrator.intent_router import (
 from src.sink.report_generator import render_markdown
 
 
-def _parser() -> argparse.ArgumentParser:
+def _parser(settings: Settings | None = None) -> argparse.ArgumentParser:
+    app_settings = settings or get_settings()
     parser = argparse.ArgumentParser(
         description="Recherche sourcée et audit documentaire Concordia."
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
     build = commands.add_parser("build-index", help="Construire ou reconstruire l'index local.")
-    build.add_argument("--db", type=Path, default=DEFAULT_DATABASE)
+    build.add_argument("--db", type=Path, default=app_settings.database_path)
     build.add_argument("--processed-dir", type=Path, default=DEFAULT_PROCESSED_DIR)
     build.add_argument("--ccja-documents", type=Path, default=DEFAULT_CCJA_DOCUMENTS)
     build.add_argument("--ccja-chunks", type=Path, default=DEFAULT_CCJA_CHUNKS)
@@ -43,24 +50,31 @@ def _parser() -> argparse.ArgumentParser:
         "--vector-model",
         help=(
             "Construire aussi l'index vectoriel avec ce modèle local "
-            f"(défaut : {DEFAULT_EMBEDDING_MODEL})."
+            f"(défaut : {app_settings.embedding_model})."
         ),
     )
 
     ask = commands.add_parser("ask", help="Rechercher des passages juridiques avec citations.")
     ask.add_argument("question")
-    ask.add_argument("--db", type=Path, default=DEFAULT_DATABASE)
+    ask.add_argument("--db", type=Path, default=app_settings.database_path)
     ask.add_argument("--top-k", type=int, default=5)
     ask.add_argument("--retrieval-mode", choices=("fts", "vector", "hybrid"), default="fts")
+    ask.add_argument(
+        "--source-scope",
+        choices=("legal_texts", "case_law", "all"),
+        default="legal_texts",
+        help="Limiter la recherche aux textes, à la jurisprudence CCJA ou à toutes les sources.",
+    )
+    ask.add_argument("--generate", action="store_true", help="Générer une synthèse sourcée avec Ollama.")
 
     audit = commands.add_parser("audit", help="Exécuter les événements d'un scénario.")
     audit.add_argument("scenario", type=Path)
-    audit.add_argument("--db", type=Path, default=DEFAULT_DATABASE)
+    audit.add_argument("--db", type=Path, default=app_settings.database_path)
     audit.add_argument("--output-dir", type=Path, default=Path("data/audits"))
 
     route = commands.add_parser(
         "route",
-        help="Router une demande vers la recherche juridique ou l'audit documentaire.",
+        help="Router vers la recherche juridique, l'audit ou l'analyse institutionnelle.",
     )
     route.add_argument("request", help="Demande en français à traiter.")
     route.add_argument(
@@ -69,35 +83,69 @@ def _parser() -> argparse.ArgumentParser:
         help="Forcer le parcours au lieu de l'inférer à partir de mots-clés.",
     )
     route.add_argument("--scenario", type=Path, help="Fichier JSON requis pour un audit.")
-    route.add_argument("--db", type=Path, default=DEFAULT_DATABASE)
+    route.add_argument("--institution", help="Institution ou rôle institutionnel à examiner.")
+    route.add_argument("--mandate", help="Mandat explicite de l'analyse institutionnelle.")
+    route.add_argument("--jurisdiction", help="Juridiction concernée par l'analyse.")
+    route.add_argument("--db", type=Path, default=app_settings.database_path)
     route.add_argument("--top-k", type=int, default=5)
     route.add_argument("--retrieval-mode", choices=("fts", "vector", "hybrid"), default="fts")
+    route.add_argument(
+        "--source-scope",
+        choices=("legal_texts", "case_law", "all"),
+        default="legal_texts",
+        help="Périmètre de sources pour la recherche juridique ou institutionnelle.",
+    )
+    route.add_argument("--generate", action="store_true", help="Générer une synthèse sourcée avec Ollama.")
     route.add_argument("--output-dir", type=Path, default=Path("data/audits"))
 
     graph = commands.add_parser("graph", help="Afficher les relations CCJA indexées.")
     graph.add_argument("record_id", help="Identifiant d'une décision, par exemple OHADA-CCJA-00000.")
-    graph.add_argument("--db", type=Path, default=DEFAULT_DATABASE)
+    graph.add_argument("--db", type=Path, default=app_settings.database_path)
 
     evaluate = commands.add_parser(
         "evaluate-search",
         help="Mesurer la recherche sur un benchmark de références attendues.",
     )
     evaluate.add_argument("benchmark", type=Path)
-    evaluate.add_argument("--db", type=Path, default=DEFAULT_DATABASE)
+    evaluate.add_argument("--db", type=Path, default=app_settings.database_path)
     evaluate.add_argument("--top-k", type=int, default=5)
     evaluate.add_argument("--retrieval-mode", choices=("fts", "vector", "hybrid"), default="fts")
+    evaluate.add_argument(
+        "--source-scope",
+        choices=("legal_texts", "case_law", "all"),
+        default="legal_texts",
+        help="Périmètre des sources évaluées.",
+    )
     return parser
 
 
+def _print_source_scope(source_scope: str) -> None:
+    labels = {
+        "legal_texts": "textes juridiques (hors doctrine et jurisprudence CCJA)",
+        "case_law": "jurisprudence CCJA",
+        "all": "toutes les sources indexées",
+    }
+    print(f"\nPérimètre des sources : {labels[source_scope]}")
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
     try:
+        settings = get_settings()
+        parser = _parser(settings)
+        arguments = sys.argv[1:] if argv is None else argv
+        if not arguments:
+            parser.print_help()
+            return 0
+        args = parser.parse_args(arguments)
         routed_request = None
         if args.command == "route":
             routed_request = route_request(
                 args.request,
                 intent=args.intent,
                 scenario_path=args.scenario,
+                institution=args.institution,
+                mandate=args.mandate,
+                jurisdiction=args.jurisdiction,
             )
         knowledge_base = KnowledgeBase(args.db)
         if args.command == "build-index":
@@ -117,8 +165,12 @@ def main(argv: list[str] | None = None) -> int:
             result = LegalPolicyAgent(knowledge_base, top_k=args.top_k).answer(
                 route.question,
                 retrieval_mode=args.retrieval_mode,
+                use_llm=args.generate,
+                source_scope=args.source_scope,
             )
             print(result["answer"])
+            _print_source_scope(args.source_scope)
+            print(f"\nContrôle Policy : {result['policy']['decision']}")
         elif args.command == "audit":
             route = route_request(
                 str(args.scenario),
@@ -136,8 +188,12 @@ def main(argv: list[str] | None = None) -> int:
                 result = LegalPolicyAgent(knowledge_base, top_k=args.top_k).answer(
                     routed_request.question,
                     retrieval_mode=args.retrieval_mode,
+                    use_llm=args.generate,
+                    source_scope=args.source_scope,
                 )
                 print(result["answer"])
+                _print_source_scope(args.source_scope)
+                print(f"\nContrôle Policy : {result['policy']['decision']}")
             elif isinstance(routed_request, DocumentAuditRequest):
                 report = run_scenario(
                     routed_request.scenario_path,
@@ -147,6 +203,23 @@ def main(argv: list[str] | None = None) -> int:
                 print(render_markdown(report))
                 print(f"Rapport JSON : {report['report_path']}")
                 print(f"Journal d'audit : {report['audit_log_path']}")
+            elif isinstance(routed_request, InstitutionalAnalysisRequest):
+                result = InstitutionalAgent(
+                    knowledge_base,
+                    top_k=args.top_k,
+                    settings=settings,
+                ).analyze(
+                    routed_request.question,
+                    institution=routed_request.institution,
+                    mandate=routed_request.mandate,
+                    jurisdiction=routed_request.jurisdiction,
+                    retrieval_mode=args.retrieval_mode,
+                    use_llm=args.generate,
+                    source_scope=args.source_scope,
+                )
+                print(result["agent_result"]["summary"])
+                _print_source_scope(args.source_scope)
+                print(f"\nContrôle Policy : {result['policy']['decision']}")
             else:
                 raise RuntimeError("Le routeur n'a retourné aucun parcours.")
         elif args.command == "graph":
@@ -159,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
                 cases,
                 top_k=args.top_k,
                 retrieval_mode=args.retrieval_mode,
+                source_scope=args.source_scope,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0

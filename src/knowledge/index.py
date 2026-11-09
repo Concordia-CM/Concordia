@@ -31,6 +31,7 @@ _ARTICLE_REFERENCE = re.compile(
     r"|premier|première)\b",
     re.IGNORECASE,
 )
+_RCCM_QUERY = re.compile(r"\brccm\b", re.IGNORECASE)
 _STOP_WORDS = {
     "afin", "ainsi", "alors", "au", "aucun", "aucune", "auquel", "aussi", "autre",
     "aux", "avec", "car", "ce", "ces", "cet", "cette", "ceux", "chez", "comme",
@@ -45,6 +46,20 @@ _STOP_WORDS = {
 }
 
 RetrievalMode = Literal["fts", "vector", "hybrid"]
+SourceScope = Literal["legal_texts", "case_law", "all"]
+
+
+_SOURCE_SCOPE_PREDICATES: dict[SourceScope, str] = {
+    "legal_texts": (
+        "AND c.entity_type != 'CCJA_Decision' "
+        "AND COALESCE("
+        "json_extract(c.metadata_json, '$.document.document_category'), "
+        "''"
+        ") != 'doctrine_or_manual'"
+    ),
+    "case_law": "AND c.entity_type = 'CCJA_Decision'",
+    "all": "",
+}
 
 
 class TextEncoder(Protocol):
@@ -157,6 +172,70 @@ def _query_expression(question: str) -> str:
         if len(tokens) == 16:
             break
     return " OR ".join(f'"{token.replace(chr(34), chr(34) * 2)}"' for token in tokens)
+
+
+def _contains_rccm_reference(text: str) -> bool:
+    tokens = [
+        "".join(
+            character
+            for character in unicodedata.normalize("NFKD", token.casefold())
+            if not unicodedata.combining(character)
+        )
+        for token in _TOKEN.findall(text)
+    ]
+    joined_tokens: list[str] = []
+    for token in tokens:
+        if joined_tokens and (
+            (joined_tokens[-1] == "commer" and token == "ce")
+            or (joined_tokens[-1] == "credi" and token == "t")
+        ):
+            joined_tokens[-1] += token
+        else:
+            joined_tokens.append(token)
+
+    if "rccm" in joined_tokens:
+        return True
+    for register_index, token in enumerate(joined_tokens):
+        if token != "registre":
+            continue
+        commerce_index = next(
+            (
+                index
+                for index in range(register_index + 1, min(register_index + 5, len(joined_tokens)))
+                if joined_tokens[index] == "commerce"
+            ),
+            None,
+        )
+        if commerce_index is None:
+            continue
+        credit_index = next(
+            (
+                index
+                for index in range(commerce_index + 1, min(commerce_index + 6, len(joined_tokens)))
+                if joined_tokens[index] == "credit"
+            ),
+            None,
+        )
+        if credit_index is not None and any(
+            joined_tokens[index] == "mobilier"
+            for index in range(credit_index + 1, min(credit_index + 4, len(joined_tokens)))
+        ):
+            return True
+    return False
+
+
+def _hit_has_rccm_reference(hit: SearchHit) -> bool:
+    if _contains_rccm_reference(f"{hit.title} {hit.section_title} {hit.text}"):
+        return True
+    hierarchy_path = hit.metadata.get("hierarchy_path", [])
+    if not isinstance(hierarchy_path, list):
+        return False
+    hierarchy_text = " ".join(
+        str(item.get("title", ""))
+        for item in hierarchy_path
+        if isinstance(item, dict)
+    )
+    return _contains_rccm_reference(hierarchy_text)
 
 
 def _citation_metadata(
@@ -624,20 +703,23 @@ class KnowledgeBase:
         question: str,
         limit: int = 5,
         retrieval_mode: RetrievalMode = "fts",
+        source_scope: SourceScope = "all",
     ) -> list[SearchHit]:
         if limit < 1:
             raise ValueError("Le nombre de résultats doit être positif.")
         if retrieval_mode not in ("fts", "vector", "hybrid"):
             raise ValueError(f"Mode de recherche inconnu : {retrieval_mode}.")
+        if source_scope not in _SOURCE_SCOPE_PREDICATES:
+            raise ValueError(f"Périmètre de sources inconnu : {source_scope}.")
         if not question.strip():
             return []
         if retrieval_mode == "fts":
-            return self._search_fts(question, limit)
+            return self._search_fts(question, limit, source_scope)
 
-        vector_hits = self._search_vectors(question, limit)
+        vector_hits = self._search_vectors(question, limit, source_scope)
         if retrieval_mode == "vector":
             return vector_hits
-        fts_hits = self._search_fts(question, limit)
+        fts_hits = self._search_fts(question, limit, source_scope)
         fused: dict[tuple[str, str, str, str], tuple[SearchHit, float]] = {}
         for weight, hits in ((_FTS_RRF_WEIGHT, fts_hits), (1.0, vector_hits)):
             for rank, hit in enumerate(hits, start=1):
@@ -656,7 +738,12 @@ class KnowledgeBase:
             )[:limit]
         ]
 
-    def _search_fts(self, question: str, limit: int) -> list[SearchHit]:
+    def _search_fts(
+        self,
+        question: str,
+        limit: int,
+        source_scope: SourceScope,
+    ) -> list[SearchHit]:
         expression = _query_expression(question)
         if not expression:
             return []
@@ -671,9 +758,15 @@ class KnowledgeBase:
             article_match = _ARTICLE_REFERENCE.search(question)
             article_number = article_match.group("number") if article_match else None
             article_filter = "AND lower(c.article_number) = lower(?)" if article_number else ""
-            parameters: tuple[Any, ...] = (expression, article_number, max(limit * 30, 100))
+            source_filter = _SOURCE_SCOPE_PREDICATES[source_scope]
+            candidate_limit = (
+                max(limit * 60, 300)
+                if _RCCM_QUERY.search(question)
+                else max(limit * 30, 100)
+            )
+            parameters: tuple[Any, ...] = (expression, article_number, candidate_limit)
             if article_number is None:
-                parameters = (expression, max(limit * 30, 100))
+                parameters = (expression, candidate_limit)
             rows = connection.execute(
                 f"""
                 SELECT c.*, bm25(chunks_fts, 5.0, 1.0, 0.2) AS score,
@@ -682,6 +775,7 @@ class KnowledgeBase:
                 JOIN chunks AS c ON c.chunk_id = chunks_fts.rowid
                 WHERE chunks_fts MATCH ?
                 {article_filter}
+                {source_filter}
                 ORDER BY score
                 LIMIT ?
                 """,
@@ -711,6 +805,8 @@ class KnowledgeBase:
             )
             for row in rows
         ]
+        if _RCCM_QUERY.search(question):
+            hits = [hit for hit in hits if _hit_has_rccm_reference(hit)]
         if article_number is None:
             query_terms = {
                 term
@@ -718,7 +814,7 @@ class KnowledgeBase:
                 if term not in _STOP_WORDS and len(term) > 1
             }
 
-            def relevance(hit: SearchHit) -> tuple[float, int, int, float]:
+            def relevance(hit: SearchHit) -> tuple[int, int, float, int, float]:
                 searchable = unicodedata.normalize(
                     "NFKD",
                     f"{hit.title} {hit.section_title} {hit.text}".casefold(),
@@ -739,12 +835,53 @@ class KnowledgeBase:
                     in searchable
                 )
                 coverage = matched / len(query_terms) if query_terms else 0.0
-                return coverage, int(bool(hit.article_number)), matched, -hit.score
+                hierarchy_path = hit.metadata.get("hierarchy_path", [])
+                hierarchy_text = " ".join(
+                    str(item.get("title", ""))
+                    for item in hierarchy_path
+                    if isinstance(item, dict)
+                ) if isinstance(hierarchy_path, list) else ""
+                normalized_hierarchy = unicodedata.normalize(
+                    "NFKD", hierarchy_text.casefold()
+                ).replace("’", "'")
+                person_registration_section = any(
+                    isinstance(item, dict)
+                    and item.get("type") == "Section"
+                    and unicodedata.normalize(
+                        "NFKD", str(item.get("title", "")).casefold()
+                    ).startswith("immatriculation des personnes")
+                    for item in hierarchy_path
+                ) if isinstance(hierarchy_path, list) else False
+                registration_depth = 0
+                if (
+                    _RCCM_QUERY.search(question)
+                    and _contains_rccm_reference(hierarchy_text)
+                    and "immatricul" in normalized_hierarchy
+                ):
+                    registration_depth = (
+                        3
+                        if person_registration_section
+                        else 2
+                        if "conditions de l'immatriculation" in normalized_hierarchy
+                        else 1
+                    )
+                return (
+                    registration_depth,
+                    int(bool(hit.article_number)),
+                    coverage,
+                    matched,
+                    -hit.score,
+                )
 
             hits.sort(key=relevance, reverse=True)
         return hits[:limit]
 
-    def _search_vectors(self, question: str, limit: int) -> list[SearchHit]:
+    def _search_vectors(
+        self,
+        question: str,
+        limit: int,
+        source_scope: SourceScope,
+    ) -> list[SearchHit]:
         if not self.database_path.is_file():
             raise FileNotFoundError(
                 f"Index introuvable : {self.database_path}. "
@@ -816,6 +953,7 @@ class KnowledgeBase:
         if query_norm == 0:
             raise ValueError("Le modèle a retourné un vecteur de requête nul.")
         similarities = vectors @ (query[0] / query_norm)
+        candidate_limit = max(limit * 30, 100) if _RCCM_QUERY.search(question) else limit
 
         connection = self._connect()
         try:
@@ -827,6 +965,17 @@ class KnowledgeBase:
                     (article_match.group("number"),),
                 ).fetchall()
                 allowed_ids = {row["chunk_id"] for row in matching_rows}
+            source_filter = _SOURCE_SCOPE_PREDICATES[source_scope]
+            if source_filter:
+                scoped_rows = connection.execute(
+                    f"SELECT c.chunk_id FROM chunks AS c WHERE 1=1 {source_filter}"
+                ).fetchall()
+                scoped_ids = {row["chunk_id"] for row in scoped_rows}
+                allowed_ids = (
+                    scoped_ids
+                    if allowed_ids is None
+                    else allowed_ids.intersection(scoped_ids)
+                )
             ordered_indices = np.argsort(-similarities, kind="stable")
             selected = []
             for index in ordered_indices:
@@ -834,7 +983,7 @@ class KnowledgeBase:
                 if allowed_ids is not None and chunk_id not in allowed_ids:
                     continue
                 selected.append((chunk_id, float(similarities[index])))
-                if len(selected) == limit:
+                if len(selected) == candidate_limit:
                     break
             if not selected:
                 return []
@@ -873,7 +1022,12 @@ class KnowledgeBase:
                     score=score,
                 )
             )
-        return hits
+        if _RCCM_QUERY.search(question):
+            hits = [hit for hit in hits if _contains_rccm_reference(
+                f"{hit.title} {hit.section_title} {hit.text}"
+            )]
+            hits.sort(key=lambda hit: (not bool(hit.article_number), -hit.score))
+        return hits[:limit]
 
     def related(self, record_id: str) -> list[dict[str, Any]]:
         """Retourne les relations CCJA conservées avec la décision."""
@@ -899,6 +1053,52 @@ class KnowledgeBase:
             ]
         finally:
             connection.close()
+
+    def verify_source(
+        self,
+        record_id: str,
+        section_id: str,
+        citation: str,
+        text: str,
+    ) -> bool:
+        """Vérifie l'identifiant, la citation formatée et le passage exact indexé."""
+        if not all(value.strip() for value in (record_id, section_id, citation, text)):
+            return False
+        if not self.database_path.is_file():
+            raise FileNotFoundError(
+                f"Index introuvable : {self.database_path}. "
+                "Construisez-le avec la commande build-index."
+            )
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT title, source_file, section_title, article_number,
+                       page_start, page_end, text
+                FROM chunks
+                WHERE record_id = ? AND section_id = ?
+                """,
+                (record_id, section_id),
+            ).fetchall()
+        finally:
+            connection.close()
+
+        for row in rows:
+            parts = [row["title"]]
+            if row["article_number"]:
+                parts.append(f"article {row['article_number']}")
+            elif row["section_title"]:
+                parts.append(row["section_title"])
+            if row["page_start"] is not None:
+                page = str(row["page_start"])
+                if row["page_end"] is not None and row["page_end"] != row["page_start"]:
+                    page += f"-{row['page_end']}"
+                parts.append(f"p. {page}")
+            if row["source_file"]:
+                parts.append(row["source_file"])
+            if " — ".join(parts) == citation and row["text"] == text:
+                return True
+        return False
 
 
 def format_documentary_answer(question: str, hits: list[SearchHit]) -> str:

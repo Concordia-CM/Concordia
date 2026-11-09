@@ -34,6 +34,18 @@ class AuditFlowTests(unittest.TestCase):
         self.assertEqual(result["finding"], "documentation_gap_to_review")
         self.assertEqual(result["missing_scenario_evidence"], ["Extrait RCCM"])
 
+    def test_auditor_rejects_empty_or_non_text_facts_and_documents(self) -> None:
+        class NoSourceAgent(LegalPolicyAgent):
+            def __init__(self) -> None:
+                pass
+
+        auditor = AuditorAgent(NoSourceAgent())
+        check = {"question": "vérification"}
+        with self.assertRaisesRegex(ValueError, "facts"):
+            auditor.assess_check(check, facts=[" "], documents_received=[])
+        with self.assertRaisesRegex(ValueError, "documents_received"):
+            auditor.assess_check(check, facts=[], documents_received=[None])
+
     def test_events_are_assessed_sequentially_and_logged_with_sources(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -74,6 +86,11 @@ class AuditFlowTests(unittest.TestCase):
                         "scenario_id": "sequential-test",
                         "title": "Scénario de test",
                         "jurisdiction": "OHADA",
+                        "institutional_review": {
+                            "institution": "Autorité de supervision",
+                            "mandate": "Examiner les obligations de déclaration.",
+                            "jurisdiction": "Cameroun",
+                        },
                         "events": [
                             {
                                 "event_id": "first",
@@ -117,6 +134,19 @@ class AuditFlowTests(unittest.TestCase):
             self.assertEqual(second_check["finding"], "human_review_required")
             self.assertEqual(second_check["missing_scenario_evidence"], [])
             self.assertTrue(second_check["sources"][0]["citation"].endswith("p. 4 — acte-uniforme.pdf"))
+            institutional = first_check["institutional_analysis"]
+            self.assertEqual(
+                institutional["institution"],
+                "Autorité de supervision",
+            )
+            self.assertEqual(
+                institutional["agent_result"]["role"],
+                "institutional",
+            )
+            self.assertEqual(
+                institutional["policy"]["decision"],
+                "human_review_required",
+            )
             self.assertEqual(report["assessment"], "human_review_required")
 
             log_records = [
@@ -128,6 +158,10 @@ class AuditFlowTests(unittest.TestCase):
                 ["audit_started", "event_assessed", "event_assessed", "audit_completed"],
             )
             self.assertEqual(log_records[1]["checks"][0]["sources"][0]["section_id"], "article-12")
+            self.assertEqual(
+                log_records[1]["checks"][0]["institutional_analysis"]["policy"]["decision"],
+                "human_review_required",
+            )
             self.assertTrue(log_records[1]["assessed_at"])
 
 

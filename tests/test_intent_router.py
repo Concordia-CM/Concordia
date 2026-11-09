@@ -10,6 +10,7 @@ from src.app import main
 from src.orchestrator.intent_router import (
     AmbiguousIntentError,
     DocumentAuditRequest,
+    InstitutionalAnalysisRequest,
     LegalSearchRequest,
     RoutingInputError,
     UnsupportedIntentError,
@@ -65,9 +66,88 @@ class IntentRouterTests(unittest.TestCase):
 
     def test_rejects_unknown_intent_and_empty_request(self) -> None:
         with self.assertRaisesRegex(RoutingInputError, "Intention inconnue"):
-            route_request("question", intent="institutional_analysis")
+            route_request("question", intent="unknown")
         with self.assertRaisesRegex(RoutingInputError, "ne peut pas être vide"):
             route_request("  ", intent="legal_search")
+
+    def test_routes_institutional_analysis_with_explicit_scope(self) -> None:
+        result = route_request(
+            "Examiner les obligations de déclaration",
+            intent="institutional_analysis",
+            institution="Autorité de supervision",
+            mandate="Examiner les obligations de déclaration.",
+            jurisdiction="Cameroun",
+        )
+
+        self.assertEqual(
+            result,
+            InstitutionalAnalysisRequest(
+                intent="institutional_analysis",
+                question="Examiner les obligations de déclaration",
+                institution="Autorité de supervision",
+                mandate="Examiner les obligations de déclaration.",
+                jurisdiction="Cameroun",
+            ),
+        )
+
+    def test_institutional_route_requires_institution_and_mandate(self) -> None:
+        with self.assertRaisesRegex(RoutingInputError, "--institution"):
+            route_request(
+                "Examiner les obligations",
+                intent="institutional_analysis",
+                mandate="Contrôler les obligations.",
+            )
+        with self.assertRaisesRegex(RoutingInputError, "--mandate"):
+            route_request(
+                "Examiner les obligations",
+                intent="institutional_analysis",
+                institution="Autorité",
+            )
+
+    @patch("src.app.KnowledgeBase")
+    @patch("src.app.InstitutionalAgent")
+    def test_cli_executes_institutional_route_with_explicit_configuration(
+        self,
+        institutional_agent_class: MagicMock,
+        knowledge_base_class: MagicMock,
+    ) -> None:
+        institutional_agent_class.return_value.analyze.return_value = {
+            "agent_result": {"summary": "Analyse institutionnelle sourcée"},
+            "policy": {"decision": "human_review_required"},
+        }
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            exit_code = main(
+                [
+                    "route",
+                    "Examiner les obligations de déclaration",
+                    "--intent",
+                    "institutional_analysis",
+                    "--institution",
+                    "Autorité de supervision",
+                    "--mandate",
+                    "Examiner les obligations de déclaration.",
+                    "--jurisdiction",
+                    "Cameroun",
+                    "--db",
+                    "unused",
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Analyse institutionnelle sourcée", output.getvalue())
+        self.assertIn("human_review_required", output.getvalue())
+        institutional_agent_class.return_value.analyze.assert_called_once_with(
+            "Examiner les obligations de déclaration",
+            institution="Autorité de supervision",
+            mandate="Examiner les obligations de déclaration.",
+            jurisdiction="Cameroun",
+            retrieval_mode="fts",
+            use_llm=False,
+            source_scope="legal_texts",
+        )
+        knowledge_base_class.assert_called_once()
 
     @patch("src.app.KnowledgeBase")
     @patch("src.app.LegalPolicyAgent")
@@ -76,7 +156,10 @@ class IntentRouterTests(unittest.TestCase):
         legal_agent_class: MagicMock,
         knowledge_base_class: MagicMock,
     ) -> None:
-        legal_agent_class.return_value.answer.return_value = {"answer": "Réponse sourcée"}
+        legal_agent_class.return_value.answer.return_value = {
+            "answer": "Réponse sourcée",
+            "policy": {"decision": "human_review_required"},
+        }
         output = io.StringIO()
 
         with redirect_stdout(output):

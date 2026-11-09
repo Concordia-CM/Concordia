@@ -9,6 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from src.agents.auditor_agent import AuditorAgent
+from src.agents.institutional_agent import InstitutionalAgent
 from src.agents.legal_policy_agent import LegalPolicyAgent
 from src.knowledge.index import KnowledgeBase
 from src.sink.audit_logger import write_audit_log
@@ -38,6 +39,29 @@ def run_scenario(
     if not isinstance(events, list) or not events:
         raise ValueError("Le scénario doit contenir une liste non vide d'événements.")
 
+    institutional_config = scenario.get("institutional_review")
+    institutional_agent = None
+    if institutional_config is not None:
+        if not isinstance(institutional_config, dict):
+            raise ValueError("institutional_review doit être un objet JSON.")
+        institution = institutional_config.get("institution")
+        mandate = institutional_config.get("mandate")
+        jurisdiction = institutional_config.get("jurisdiction")
+        generate = institutional_config.get("generate", False)
+        if not isinstance(institution, str) or not institution.strip():
+            raise ValueError("institutional_review.institution doit être un texte non vide.")
+        if not isinstance(mandate, str) or not mandate.strip():
+            raise ValueError("institutional_review.mandate doit être un texte non vide.")
+        if jurisdiction is not None and (
+            not isinstance(jurisdiction, str) or not jurisdiction.strip()
+        ):
+            raise ValueError(
+                "institutional_review.jurisdiction doit être omise ou non vide."
+            )
+        if not isinstance(generate, bool):
+            raise ValueError("institutional_review.generate doit être booléen.")
+        institutional_agent = InstitutionalAgent(knowledge_base)
+
     legal_agent = LegalPolicyAgent(knowledge_base)
     auditor = AuditorAgent(legal_agent)
     audit_id = str(uuid4())
@@ -64,6 +88,14 @@ def run_scenario(
             if not isinstance(check_value, dict):
                 raise ValueError(f"Chaque contrôle de l'événement {event_id} doit être un objet.")
             check_result = auditor.assess_check(check_value, facts, documents)
+            if institutional_agent is not None:
+                check_result["institutional_analysis"] = institutional_agent.analyze(
+                    check_result["question"],
+                    institution=institution,
+                    mandate=mandate,
+                    jurisdiction=jurisdiction,
+                    use_llm=generate,
+                )
             check_results.append(check_result)
 
         assessed_at = datetime.now(timezone.utc).isoformat()
@@ -88,6 +120,8 @@ def run_scenario(
                         "check_id": item["check_id"],
                         "question": item["question"],
                         "finding": item["finding"],
+                        "policy": item.get("policy"),
+                        "institutional_analysis": item.get("institutional_analysis"),
                         "sources": [
                             {
                                 "record_id": source["record_id"],

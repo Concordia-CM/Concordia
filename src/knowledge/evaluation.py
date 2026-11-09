@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.knowledge.index import KnowledgeBase, RetrievalMode
+from src.knowledge.index import KnowledgeBase, RetrievalMode, SourceScope
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,9 @@ class RetrievalCase:
     case_id: str
     question: str
     expected_sources: tuple[ExpectedSource, ...]
+    distractor_sources: tuple[ExpectedSource, ...] = ()
+    domain: str = "unspecified"
+    audit_focus: str = ""
 
 
 def load_retrieval_cases(path: str | Path) -> list[RetrievalCase]:
@@ -41,6 +44,8 @@ def load_retrieval_cases(path: str | Path) -> list[RetrievalCase]:
             raise ValueError(f"Le cas {index} du benchmark doit être un objet.")
         case_id = value.get("case_id")
         question = value.get("question")
+        domain = value.get("domain", "unspecified")
+        audit_focus = value.get("audit_focus", "")
         raw_sources = value.get("expected_sources")
         if not isinstance(case_id, str) or not case_id.strip():
             raise ValueError(f"Le cas {index} doit avoir un case_id non vide.")
@@ -49,31 +54,54 @@ def load_retrieval_cases(path: str | Path) -> list[RetrievalCase]:
         seen_case_ids.add(case_id)
         if not isinstance(question, str) or not question.strip():
             raise ValueError(f"La question du cas {case_id} doit être non vide.")
+        if not isinstance(domain, str) or not domain.strip():
+            raise ValueError(f"Le domaine du cas {case_id} doit être non vide.")
+        if not isinstance(audit_focus, str):
+            raise ValueError(f"Le point de contrôle du cas {case_id} doit être du texte.")
         if not isinstance(raw_sources, list) or not raw_sources:
             raise ValueError(f"Le cas {case_id} doit contenir des expected_sources.")
 
-        expected_sources = []
-        seen_sources: set[tuple[str, str]] = set()
-        for source in raw_sources:
-            if not isinstance(source, dict):
-                raise ValueError(f"Chaque source attendue du cas {case_id} doit être un objet.")
-            record_id = source.get("record_id")
-            section_id = source.get("section_id")
-            if not isinstance(record_id, str) or not record_id.strip():
-                raise ValueError(f"Une source attendue du cas {case_id} n'a pas de record_id.")
-            if not isinstance(section_id, str) or not section_id.strip():
-                raise ValueError(f"Une source attendue du cas {case_id} n'a pas de section_id.")
-            identity = (record_id, section_id)
-            if identity in seen_sources:
-                raise ValueError(f"Source attendue dupliquée dans le cas {case_id}.")
-            seen_sources.add(identity)
-            expected_sources.append(ExpectedSource(record_id, section_id))
+        def parse_sources(raw_values: list[Any], label: str) -> tuple[ExpectedSource, ...]:
+            parsed_sources = []
+            seen_sources: set[tuple[str, str]] = set()
+            for source in raw_values:
+                if not isinstance(source, dict):
+                    raise ValueError(f"Chaque {label} du cas {case_id} doit être un objet.")
+                record_id = source.get("record_id")
+                section_id = source.get("section_id")
+                if not isinstance(record_id, str) or not record_id.strip():
+                    raise ValueError(f"Une {label} du cas {case_id} n'a pas de record_id.")
+                if not isinstance(section_id, str) or not section_id.strip():
+                    raise ValueError(f"Une {label} du cas {case_id} n'a pas de section_id.")
+                identity = (record_id, section_id)
+                if identity in seen_sources:
+                    raise ValueError(f"{label.capitalize()} dupliquée dans le cas {case_id}.")
+                seen_sources.add(identity)
+                parsed_sources.append(ExpectedSource(record_id, section_id))
+            return tuple(parsed_sources)
+
+        expected_sources = parse_sources(raw_sources, "source attendue")
+        raw_distractors = value.get("distractor_sources", [])
+        if not isinstance(raw_distractors, list):
+            raise ValueError(f"Les distracteurs du cas {case_id} doivent être une liste.")
+        distractor_sources = parse_sources(raw_distractors, "source distractrice")
+        expected_keys = {(source.record_id, source.section_id) for source in expected_sources}
+        distractor_keys = {
+            (source.record_id, source.section_id) for source in distractor_sources
+        }
+        if expected_keys & distractor_keys:
+            raise ValueError(
+                f"Une source du cas {case_id} ne peut pas être attendue et distractrice."
+            )
 
         cases.append(
             RetrievalCase(
                 case_id=case_id,
                 question=question.strip(),
-                expected_sources=tuple(expected_sources),
+                expected_sources=expected_sources,
+                distractor_sources=distractor_sources,
+                domain=domain.strip(),
+                audit_focus=audit_focus.strip(),
             )
         )
     if not cases:
@@ -86,8 +114,9 @@ def evaluate_retrieval(
     cases: list[RetrievalCase],
     top_k: int = 5,
     retrieval_mode: RetrievalMode = "fts",
+    source_scope: SourceScope = "legal_texts",
 ) -> dict[str, Any]:
-    """Calcule hit rate, recall, MRR, couverture de citations et latence au top-k."""
+    """Calcule hit rate, recall, precision@k, MRR, citations et latence."""
     if top_k < 1:
         raise ValueError("top_k doit être positif.")
     if not cases:
@@ -100,6 +129,7 @@ def evaluate_retrieval(
     relevant_results = 0
     cited_relevant_results = 0
     elapsed_ms = 0.0
+    retrieved_relevant_count = 0
 
     for case in cases:
         started = time.perf_counter()
@@ -107,12 +137,16 @@ def evaluate_retrieval(
             case.question,
             limit=top_k,
             retrieval_mode=retrieval_mode,
+            source_scope=source_scope,
         )
         elapsed = (time.perf_counter() - started) * 1000
         elapsed_ms += elapsed
 
         expected = {
             (source.record_id, source.section_id) for source in case.expected_sources
+        }
+        distractors = {
+            (source.record_id, source.section_id) for source in case.distractor_sources
         }
         retrieved = [
             (hit.record_id, hit.section_id, hit.citation)
@@ -123,11 +157,17 @@ def evaluate_retrieval(
             for rank, (record_id, section_id, _) in enumerate(retrieved, start=1)
             if (record_id, section_id) in expected
         ]
+        distractor_ranks = [
+            rank
+            for rank, (record_id, section_id, _) in enumerate(retrieved, start=1)
+            if (record_id, section_id) in distractors
+        ]
         retrieved_expected = {
             (record_id, section_id)
             for record_id, section_id, _ in retrieved
             if (record_id, section_id) in expected
         }
+        retrieved_relevant_count += len(retrieved_expected)
         case_recall = len(retrieved_expected) / len(expected)
         total_recall += case_recall
         if relevant_ranks:
@@ -142,11 +182,19 @@ def evaluate_retrieval(
         case_results.append(
             {
                 "case_id": case.case_id,
+                "domain": case.domain,
+                "audit_focus": case.audit_focus,
                 "question": case.question,
                 "expected_sources": len(expected),
                 "retrieved_expected_sources": len(retrieved_expected),
                 "reciprocal_rank": 1 / relevant_ranks[0] if relevant_ranks else 0.0,
                 "relevant_ranks": relevant_ranks,
+                "distractor_ranks": distractor_ranks,
+                "expected_before_distractors": bool(relevant_ranks)
+                and (
+                    not distractor_ranks
+                    or min(relevant_ranks) < min(distractor_ranks)
+                ),
                 "top_result_citations": [citation for _, _, citation in retrieved[:3]],
                 "latency_ms": round(elapsed, 3),
             }
@@ -157,8 +205,14 @@ def evaluate_retrieval(
         "case_count": case_count,
         "top_k": top_k,
         "retrieval_mode": retrieval_mode,
+        "source_scope": source_scope,
         "hit_rate_at_k": hits_at_k / case_count,
         "mean_recall_at_k": total_recall / case_count,
+        "precision_at_k": (
+            retrieved_relevant_count / (top_k * case_count)
+            if case_count
+            else 0.0
+        ),
         "mean_reciprocal_rank": reciprocal_rank_sum / case_count,
         "citation_coverage_of_retrieved_relevant": (
             cited_relevant_results / relevant_results if relevant_results else 0.0

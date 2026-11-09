@@ -1,0 +1,99 @@
+{
+  "checklist_id": "accounting_readiness_draft",
+  "title": "Préparation documentaire à une revue comptable",
+  "status": "draft_unvalidated",
+  "jurisdiction": "OHADA — contexte de travail, non vérifié juridiquement",
+  "disclaimer": "Modèle indicatif de préparation, non exhaustif et non validé juridiquement. Les contrôles et les pièces applicables dépendent notamment de l'entité, de la période et du mandat de revue. Un professionnel compétent doit confirmer le périmètre et les exigences avant toute conclusion.",
+  "source_note": "Les thèmes ont été réorganisés à partir du texte commercial fourni par l'utilisateur. Ce texte n'est pas une source normative. Les seuils et affirmations juridiques qu'il contient ne sont pas repris.",
+  "controls": [
+    {
+      "id": "corporate-records",
+      "category": "Dossier juridique et vie sociale",
+      "question": "Les principaux documents juridiques et de vie sociale utiles à la revue ont-ils été réunis ?",
+      "expected_evidence": [
+        "statuts",
+        "RCCM",
+        "procès-verbal",
+        "registre des associés"
+      ]
+    },
+    {
+      "id": "accounting-records",
+      "category": "Comptabilité et états financiers",
+      "question": "Les états financiers et les principaux enregistrements comptables de la période sont-ils disponibles pour la revue ?",
+      "expected_evidence": [
+        "balance générale",
+        "grand-livre",
+        "journal comptable",
+        "états financiers",
+        "annexes"
+      ]
+    },
+    {
+      "id": "bank-and-cash",
+      "category": "Trésorerie et relations bancaires",
+      "question": "Les éléments permettant de rapprocher les soldes de trésorerie et les relevés bancaires sont-ils disponibles ?",
+      "expected_evidence": [
+        "relevé bancaire",
+        "rapprochement bancaire",
+        "contrat de prêt",
+        "échéancier"
+      ]
+    },
+    {
+      "id": "assets-and-inventory",
+      "category": "Immobilisations et stocks",
+      "question": "Les éléments de suivi des immobilisations et des stocks sont-ils réunis pour examen ?",
+      "expected_evidence": [
+        "registre des immobilisations",
+        "facture d'immobilisation",
+        "plan d'amortissement",
+        "inventaire des stocks"
+      ]
+    },
+    {
+      "id": "receivables-and-payables",
+      "category": "Créances, dettes et justificatifs",
+      "question": "Les soldes des comptes clients et fournisseurs peuvent-ils être rapprochés de leurs justificatifs ?",
+      "expected_evidence": [
+        "balance âgée",
+        "facture client",
+        "facture fournisseur",
+        "justificatif de règlement"
+      ]
+    },
+    {
+      "id": "tax-records",
+      "category": "Dossier fiscal",
+      "question": "Les déclarations et justificatifs fiscaux correspondant à la période examinée sont-ils rassemblés ?",
+      "expected_evidence": [
+        "déclaration TVA",
+        "déclaration fiscale",
+        "preuve de paiement fiscal",
+        "correspondance fiscale"
+      ]
+    },
+    {
+      "id": "payroll-and-social",
+      "category": "Personnel et pièces sociales",
+      "question": "Les documents de paie et les pièces sociales utiles à la période sont-ils disponibles ?",
+      "expected_evidence": [
+        "contrat de travail",
+        "bulletin de paie",
+        "déclaration sociale",
+        "registre du personnel"
+      ]
+    },
+    {
+      "id": "commercial-and-contracts",
+      "category": "Activité commerciale et contrats",
+      "question": "Les pièces permettant de documenter les opérations commerciales significatives sont-elles accessibles ?",
+      "expected_evidence": [
+        "contrat commercial",
+        "bon de commande",
+        "bon de livraison",
+        "facture"
+      ]
+    }
+  ]
+}

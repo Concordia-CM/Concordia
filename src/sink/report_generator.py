@@ -47,6 +47,42 @@ def render_markdown(report: dict[str, Any]) -> str:
                     "",
                 ]
             )
+            policy = check.get("policy")
+            if isinstance(policy, dict):
+                lines.extend(
+                    [
+                        f"**Contrôle Policy :** `{policy['decision']}`",
+                        "",
+                    ]
+                )
+                for policy_finding in policy.get("findings", []):
+                    lines.append(f"- `{policy_finding['rule_id']}` : {policy_finding['message']}")
+                lines.append("")
+            institutional_analysis = check.get("institutional_analysis")
+            if isinstance(institutional_analysis, dict):
+                institutional_result = institutional_analysis.get("agent_result", {})
+                if isinstance(institutional_result, dict):
+                    lines.extend(
+                        [
+                            "#### Perspective institutionnelle déclarée",
+                            "",
+                            f"- **Institution / rôle :** {institutional_analysis.get('institution', '')}",
+                            f"- **Mandat fourni :** {institutional_analysis.get('mandate', '')}",
+                            f"- **Contrôle Policy :** `{institutional_analysis.get('policy', {}).get('decision', 'inconnu')}`",
+                            "",
+                            str(institutional_result.get("summary", "")),
+                            "",
+                        ]
+                    )
+                    for uncertainty in institutional_result.get("uncertainties", []):
+                        lines.append(f"- **Limite :** {uncertainty}")
+                    if institutional_result.get("sources"):
+                        lines.append("- **Sources institutionnelles consultées :**")
+                        lines.extend(
+                            f"  - {source['citation']}"
+                            for source in institutional_result["sources"]
+                        )
+                    lines.append("")
             if check["missing_scenario_evidence"]:
                 lines.append("**Pièces attendues par le scénario mais non déclarées reçues**")
                 lines.extend(f"- {item}" for item in check["missing_scenario_evidence"])
