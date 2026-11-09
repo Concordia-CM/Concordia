@@ -1,0 +1,186 @@
+{
+  "benchmark_id": "concordia-multidomain-audit-retrieval-v2",
+  "validation_status": "source_reference_checked_pending_legal_expert_review",
+  "cases": [
+    {
+      "case_id": "cameroon-electoral-code-purpose",
+      "domain": "institutions",
+      "audit_focus": "Identifier le texte cité dans un dossier.",
+      "source_file": "111-04-12-code-electoral-2022-09-27-06-08-23-utc-cfdcfbd2.json",
+      "question": "Quel texte porte le Code électoral camerounais ?",
+      "expected_sources": [
+        {
+          "record_id": "111-04-12-code-electoral-2022-09-27-06-08-23-utc-cfdcfbd2",
+          "section_id": "111-04-12-code-electoral-2022-09-27-06-08-23-utc-cfdcfbd2-article-1er"
+        }
+      ]
+    },
+    {
+      "case_id": "ohada-publication-rccm-number",
+      "domain": "sociétés et publicité légale",
+      "audit_focus": "Vérifier la mention du numéro RCCM dans un avis.",
+      "source_file": "auscgie-2014-fr-6c7c029f.json",
+      "question": "Quel numéro d'immatriculation doit figurer dans tout avis publié ?",
+      "expected_sources": [
+        {
+          "record_id": "auscgie-2014-fr-6c7c029f",
+          "section_id": "auscgie-2014-fr-6c7c029f-partie-1-livre-9-titre-1-article-257-1"
+        }
+      ],
+      "distractor_sources": [
+        {
+          "record_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc",
+          "section_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc-livre-6-titre-2-chapitre-3-article-153"
+        }
+      ]
+    },
+    {
+      "case_id": "ohada-rccm-registration-provisions",
+      "domain": "sociétés et RCCM",
+      "audit_focus": "Repérer les dispositions d'immatriculation des personnes physiques et morales.",
+      "source_file": "ohada-acte-uniforme-2010-droit-commercial-c554eccc.json",
+      "question": "Quelles dispositions concernent l'immatriculation au RCCM ?",
+      "expected_sources": [
+        {
+          "record_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc",
+          "section_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc-livre-2-titre-2-chapitre-1-section-1-article-44"
+        },
+        {
+          "record_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc",
+          "section_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc-livre-2-titre-2-chapitre-1-section-1-article-45"
+        },
+        {
+          "record_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc",
+          "section_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc-livre-2-titre-2-chapitre-1-section-2-article-46"
+        },
+        {
+          "record_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc",
+          "section_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc-livre-2-titre-2-chapitre-1-section-2-article-47"
+        }
+      ],
+      "distractor_sources": [
+        {
+          "record_id": "auscgie-2014-fr-6c7c029f",
+          "section_id": "auscgie-2014-fr-6c7c029f-partie-1-livre-9-titre-1-article-257-1"
+        }
+      ]
+    },
+    {
+      "case_id": "ohada-rccm-legal-entity-supporting-documents",
+      "domain": "sociétés et RCCM",
+      "audit_focus": "Contrôler les justificatifs associés à une demande d'immatriculation d'une personne morale.",
+      "source_file": "ohada-acte-uniforme-2010-droit-commercial-c554eccc.json",
+      "question": "Quelles pièces justificatives accompagnent la demande d'immatriculation d'une personne morale au RCCM ?",
+      "expected_sources": [
+        {
+          "record_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc",
+          "section_id": "ohada-acte-uniforme-2010-droit-commercial-c554eccc-livre-2-titre-2-chapitre-1-section-2-article-47"
+        }
+      ]
+    },
+    {
+      "case_id": "cameroon-labor-weekly-working-time",
+      "domain": "travail et ressources humaines",
+      "audit_focus": "Comparer les horaires documentés à la règle de durée hebdomadaire mentionnée par le texte.",
+      "source_file": "82-08-92-loi-du-14-aout-1992-code-du-travail-391f5bd3.json",
+      "question": "Quelle limite hebdomadaire de durée du travail le Code du travail indique-t-il pour les établissements non agricoles ?",
+      "expected_sources": [
+        {
+          "record_id": "82-08-92-loi-du-14-aout-1992-code-du-travail-391f5bd3",
+          "section_id": "82-08-92-loi-du-14-aout-1992-code-du-travail-391f5bd3-titre-v-chapitre-i-article-80"
+        }
+      ]
+    },
+    {
+      "case_id": "cameroon-labor-wage-payment-evidence",
+      "domain": "travail et ressources humaines",
+      "audit_focus": "Repérer les justificatifs documentant le paiement des salaires.",
+      "source_file": "82-08-92-loi-du-14-aout-1992-code-du-travail-391f5bd3.json",
+      "question": "Quelle pièce doit constater le paiement du salaire selon le Code du travail ?",
+      "expected_sources": [
+        {
+          "record_id": "82-08-92-loi-du-14-aout-1992-code-du-travail-391f5bd3",
+          "section_id": "82-08-92-loi-du-14-aout-1992-code-du-travail-391f5bd3-titre-iv-chapitre-ii-section-i-article-69"
+        }
+      ]
+    },
+    {
+      "case_id": "cameroon-consumer-unfair-contract-clauses",
+      "domain": "protection du consommateur",
+      "audit_focus": "Identifier les clauses contractuelles que la loi citée déclare nulles.",
+      "source_file": "915-05-11-loi-cadre-du-6-mai-2011-protection-du-consommateur-2022-09-27-06-08-23-ab45594c.json",
+      "question": "Quelles clauses contractuelles la loi-cadre sur la protection du consommateur déclare-t-elle nulles ?",
+      "expected_sources": [
+        {
+          "record_id": "915-05-11-loi-cadre-du-6-mai-2011-protection-du-consommateur-2022-09-27-06-08-23-ab45594c",
+          "section_id": "915-05-11-loi-cadre-du-6-mai-2011-protection-du-consommateur-2022-09-27-06-08-23-ab45594c-chapitre-iii-article-5"
+        }
+      ]
+    },
+    {
+      "case_id": "cameroon-consumer-product-delivery",
+      "domain": "protection du consommateur",
+      "audit_focus": "Examiner les critères de conformité minimaux d'un bien ou service livré.",
+      "source_file": "915-05-11-loi-cadre-du-6-mai-2011-protection-du-consommateur-2022-09-27-06-08-23-ab45594c.json",
+      "question": "Quelles exigences minimales le texte cité prévoit-il pour un produit ou service fourni au consommateur ?",
+      "expected_sources": [
+        {
+          "record_id": "915-05-11-loi-cadre-du-6-mai-2011-protection-du-consommateur-2022-09-27-06-08-23-ab45594c",
+          "section_id": "915-05-11-loi-cadre-du-6-mai-2011-protection-du-consommateur-2022-09-27-06-08-23-ab45594c-chapitre-iii-article-10"
+        }
+      ]
+    },
+    {
+      "case_id": "cameroon-credit-precontract-information",
+      "domain": "crédit et microfinance",
+      "audit_focus": "Vérifier les documents et informations à communiquer avant l'engagement de l'emprunteur.",
+      "source_file": "226-12-19-loi-du-24-decembre-2019-credit-bancaire-et-microfinance-4c4bacd7.json",
+      "question": "Le projet de convention, le TEG, le taux d'usure et le tableau d'amortissement doivent-ils être communiqués avant l'engagement de l'emprunteur ?",
+      "expected_sources": [
+        {
+          "record_id": "226-12-19-loi-du-24-decembre-2019-credit-bancaire-et-microfinance-4c4bacd7",
+          "section_id": "226-12-19-loi-du-24-decembre-2019-credit-bancaire-et-microfinance-4c4bacd7-titre-ill-chapitre-1-article-7"
+        }
+      ]
+    },
+    {
+      "case_id": "cameroon-competition-prohibited-agreements",
+      "domain": "concurrence",
+      "audit_focus": "Repérer les accords et ententes visés par l'interdiction décrite dans le texte.",
+      "source_file": "915-07-98-loi-du-14-juillet-1998-concurrence-2f074eca.json",
+      "question": "Quels accords et ententes visant à fixer les prix, tarifs ou escomptes sont prohibés par la loi camerounaise sur la concurrence ?",
+      "expected_sources": [
+        {
+          "record_id": "915-07-98-loi-du-14-juillet-1998-concurrence-2f074eca",
+          "section_id": "915-07-98-loi-du-14-juillet-1998-concurrence-2f074eca-titre-ii-chapitre-i-article-5"
+        }
+      ]
+    },
+    {
+      "case_id": "sycebnl-annual-financial-statements",
+      "domain": "comptabilité et audit",
+      "audit_focus": "Identifier les états financiers annuels attendus selon la catégorie d'entité.",
+      "source_file": "sycebnl-2022-fr-bee71ed9.json",
+      "question": "Quels documents composent le jeu complet des états financiers annuels d'une association selon le SYCEBNL ?",
+      "expected_sources": [
+        {
+          "record_id": "sycebnl-2022-fr-bee71ed9",
+          "section_id": "sycebnl-2022-fr-bee71ed9-partie-1-chapitre-2-article-4"
+        }
+      ]
+    },
+    {
+      "case_id": "sycebnl-auditor-appointment-criteria",
+      "domain": "comptabilité et audit",
+      "audit_focus": "Repérer les critères de désignation d'un auditeur dans le texte comptable.",
+      "source_file": "sycebnl-2022-fr-bee71ed9.json",
+      "question": "Quels critères le SYCEBNL mentionne-t-il pour la désignation d'au moins un auditeur par une entité à but non lucratif ?",
+      "expected_sources": [
+        {
+          "record_id": "sycebnl-2022-fr-bee71ed9",
+          "section_id": "sycebnl-2022-fr-bee71ed9-partie-1-chapitre-2-article-19"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "scenario_id": "cameroon-company-document-review",
+  "title": "Revue documentaire d'un dossier de société (simulation)",
+  "jurisdiction": "Cameroun / OHADA",
+  "events": [
+    {
+      "event_id": "initial-dossier",
+      "title": "Réception du dossier initial",
+      "facts": [
+        "Une société présente un dossier pour une revue documentaire simulée."
+      ],
+      "documents_received": [
+        "Projet de statuts"
+      ],
+      "checks": [
+        {
+          "check_id": "immatriculation-rccm",
+          "question": "Quelles dispositions OHADA du droit des sociétés concernent l'immatriculation d'une société au Registre du commerce et du crédit mobilier ?",
+          "expected_evidence": [
+            "Extrait RCCM à jour"
+          ]
+        }
+      ]
+    },
+    {
+      "event_id": "complementary-document",
+      "title": "Réception d'une pièce complémentaire",
+      "facts": [
+        "Une pièce complémentaire est transmise après l'examen initial."
+      ],
+      "documents_received": [
+        "Projet de statuts",
+        "Extrait RCCM à jour"
+      ],
+      "checks": [
+        {
+          "check_id": "immatriculation-rccm",
+          "question": "Quelles dispositions OHADA du droit des sociétés concernent l'immatriculation d'une société au Registre du commerce et du crédit mobilier ?",
+          "expected_evidence": [
+            "Extrait RCCM à jour"
+          ]
+        }
+      ]
+    }
+  ]
+}
