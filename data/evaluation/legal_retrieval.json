@@ -1,0 +1,28 @@
+{
+  "benchmark_id": "concordia-legal-retrieval-smoke-v1",
+  "validation_status": "source_reference_checked_pending_legal_expert_review",
+  "cases": [
+    {
+      "case_id": "cameroon-electoral-code-purpose",
+      "source_file": "111-04-12-code-electoral-2022-09-27-06-08-23-utc-cfdcfbd2.json",
+      "question": "Quel texte porte le Code électoral camerounais ?",
+      "expected_sources": [
+        {
+          "record_id": "111-04-12-code-electoral-2022-09-27-06-08-23-utc-cfdcfbd2",
+          "section_id": "111-04-12-code-electoral-2022-09-27-06-08-23-utc-cfdcfbd2-article-1er"
+        }
+      ]
+    },
+    {
+      "case_id": "ohada-publication-rccm-number",
+      "source_file": "auscgie-2014-fr-6c7c029f.json",
+      "question": "Quel identifiant commercial doit apparaître dans un avis publié par une société ?",
+      "expected_sources": [
+        {
+          "record_id": "auscgie-2014-fr-6c7c029f",
+          "section_id": "auscgie-2014-fr-6c7c029f-partie-1-livre-9-titre-1-article-257-1"
+        }
+      ]
+    }
+  ]
+}

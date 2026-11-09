@@ -1,5 +1,8 @@
 01_RAW_STORAGE/
 venv/
 __pycache__/
+.pytest_cache/
 .env
 *.log
+data/knowledge_base/
+data/audits/

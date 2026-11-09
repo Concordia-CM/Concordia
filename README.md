@@ -4,7 +4,7 @@
 
 Concordia est un prototype conçu pour le **AI for Good Sandbox Hackathon – United Arab Emirates**, organisé par l'ITU AI for Good Lab. Il explore comment une base de connaissances juridique et réglementaire contextualisée peut alimenter des agents IA spécialisés, coordonnés pour analyser des situations de conformité et rendre leurs conclusions vérifiables.
 
-> **État du projet :** le dépôt contient actuellement des pipelines d'ingestion et de préparation de données juridiques. La base vectorielle ou graphe interrogeable, les agents, leur orchestration, les scénarios interactifs et l'interface d'audit restent à implémenter. Concordia est donc un prototype en construction, et non une solution complète ou une certification de conformité à ITU-T Y.3172.
+> **État du projet :** l'ingestion, un index plein texte local interrogeable, une recherche avec citations, une recherche vectorielle locale optionnelle et une première revue de scénarios à événements progressifs sont disponibles. Le modèle vectoriel reste expérimental et doit être évalué sur un jeu plus large relu par des spécialistes. Un modèle génératif, une interface web, la validation juridique des résultats et l'évaluation sur des scénarios experts restent à développer. Ce prototype n'est ni un avis juridique ni une certification de conformité à ITU-T Y.3172.
 
 ## Contexte du hackathon
 
@@ -69,11 +69,11 @@ Cette architecture reprend le parcours présenté pour le projet : **documents s
 |---|---|---|
 | Sources (SRC) | Documents publics et documents métier autorisés, avec juridiction, date, provenance et licence | Des PDF juridiques sont présents localement ; le corpus doit être étendu et sa provenance documentée |
 | Collecte et prétraitement (C/PP) | Extraction PDF, OCR si nécessaire, normalisation et segmentation | Pipelines PDF et CCJA disponibles |
-| Base de connaissances | Indexation vectorielle et/ou plein texte, métadonnées et relations juridiques | L'importeur CCJA prépare des JSONL et des segments ; aucun index interrogeable n'est créé par ces scripts |
-| Modèles et agents (M) | Recherche augmentée par les sources, analyse de conformité et rôles institutionnels spécialisés | À implémenter |
-| Politique et coordination | Mandats, règles de priorité, protocole d'échange et désaccords entre agents | À implémenter |
-| Scénarios et application | Événements publiés progressivement, interaction utilisateur et restitution | À implémenter |
-| Audit et supervision | Sources citées, décisions observables, limites, validation et journal d'audit | À implémenter |
+| Base de connaissances | Index plein texte, métadonnées, références et relations CCJA | Index SQLite FTS5 local ; les références d'articles, de sections et de pages sont conservées |
+| Modèles et agents (M) | Recherche fondée sur les sources, analyse documentaire et rôles spécialisés | Agent juridique extractif et agent d'audit documentaire ; pas de modèle génératif configuré |
+| Politique et coordination | Mandats, règles de priorité, protocole d'échange et désaccords entre agents | Orchestration simple des contrôles d'un scénario ; arbitrage multi-institutionnel à construire |
+| Scénarios et application | Événements publiés progressivement et restitution | Scénarios JSON traités dans l'ordre par une interface CLI |
+| Audit et supervision | Sources citées, résultats observables, limites, validation humaine et journal | Rapport JSON/Markdown et journal JSONL local ; revue humaine requise |
 
 ### Alignement avec ITU-T Y.3172
 
@@ -83,14 +83,14 @@ Le projet entend également prendre en compte les perspectives du [ITU AI Readin
 
 ## Agents envisagés
 
-Les rôles suivants décrivent la cible fonctionnelle ; ils ne sont pas encore implémentés :
+Les deux premiers rôles sont disponibles dans une forme initiale ; les rôles institutionnels et une coordination plus avancée restent à construire :
 
 - **Agent d'audit** : analyse les éléments du dossier et relève les points de conformité, les écarts et les informations manquantes.
 - **Agent juridique et politique** : recherche les textes applicables, leurs références et leur portée, et signale les incertitudes ou conflits à vérifier.
 - **Agent institutionnel** : examine une situation depuis le mandat d'une autorité ou d'un acteur institutionnel défini.
 - **Orchestrateur** : distribue les informations et tâches, coordonne les analyses indépendantes, conserve les désaccords et prépare une synthèse.
 
-La page du hackathon demande une journalisation d'audit et des traces de raisonnement. La conception devra éviter de confondre une génération de texte explicative avec une preuve du raisonnement interne d'un modèle. La traçabilité visée repose sur des éléments vérifiables : sources récupérées, citations, entrées et sorties d'agents, résumés de justification, étapes du scénario, horodatage et décisions de validation humaine.
+La page du hackathon demande une journalisation d'audit et des traces de raisonnement. Le prototype journalise les événements, les contrôles et les références récupérées ; il ne prétend pas exposer un raisonnement interne de modèle. La traçabilité repose sur des éléments vérifiables : sources récupérées, citations, entrées et sorties d'agents, étapes du scénario, horodatage et décisions de validation humaine.
 
 ## Démonstration envisagée
 
@@ -110,20 +110,24 @@ Les scénarios et résultats devront être évalués sur des cas représentatifs
 
 - [`src/ingestion/ingest.py`](src/ingestion/ingest.py) : extraction et segmentation de PDF juridiques ; les sorties JSON sont nommées à partir de l'empreinte du fichier. À la relance, un PDF inchangé dont la sortie est valide est ignoré ; un PDF modifié ou une sortie absente ou invalide entraîne un nouveau traitement.
 - [`src/ingestion/ingest_ccja.py`](src/ingestion/ingest_ccja.py) : conversion d'un corpus CCJA CSV en documents JSONL et en segments de recherche ; rattachement facultatif de relations déjà présentes dans des fichiers CSV du graphe.
+- [`src/knowledge/index.py`](src/knowledge/index.py) : construction d'un index local SQLite FTS5, recherche plein texte en français, citations par article/page et chargement des relations CCJA.
+- [`src/agents/legal_policy_agent.py`](src/agents/legal_policy_agent.py) et [`src/agents/auditor_agent.py`](src/agents/auditor_agent.py) : recherche extractive sourcée et identification des pièces manquantes déclarées par un scénario, sans conclusion automatique de conformité.
+- [`src/orchestrator/coordinator.py`](src/orchestrator/coordinator.py) : traitement séquentiel des événements et production d'un rapport ainsi que d'un journal d'audit JSONL.
+- [`src/app.py`](src/app.py) : commandes CLI pour créer l'index, poser une question, lancer un audit et consulter des relations CCJA.
 - [`requirements.txt`](requirements.txt) : dépendances envisagées pour le projet, dont des bibliothèques d'API, de traitement documentaire, de recherche vectorielle et de graphe.
 
 ### À construire ou valider
 
-- index vectoriel/plein texte ou graphe réellement consultable par les agents ;
+- évaluation et amélioration du rappel/précision de la recherche sur des questions juridiques validées ;
+- recherche vectorielle et/ou modèle génératif, si retenus, avec citations vérifiables ;
 - ingestion complète et documentée des sources nationales et régionales pertinentes ;
-- orchestrateur, agents, mandats et protocole de coordination ;
-- scénarios interactifs à événements progressifs ;
-- application de démonstration et génération du rapport d'audit ;
-- journalisation structurée, citations de sources, supervision et évaluation ;
+- agents institutionnels, mandats, arbitrage et protocole d'échange multi-acteurs ;
+- interface de démonstration et supervision humaine interactive ;
+- validation juridique et métier du rapport sur des scénarios réalistes ;
 - tests de qualité de recherche, de conformité des réponses, de robustesse et de performance ;
 - documentation technique finale et démonstration vidéo, selon les exigences et le calendrier officiels.
 
-Les répertoires `src/agents/`, `src/orchestrator/`, `src/policy/` et `src/sink/` ainsi que plusieurs documents de conception sont actuellement des emplacements de projet vides ; leur présence ne signifie pas que les composants associés sont déjà fonctionnels.
+Le répertoire `src/policy/` et plusieurs documents de conception restent vides ; ils ne représentent pas encore une couche de politique ou de priorité des normes opérationnelle.
 
 ## Données et provenance
 
@@ -134,7 +138,7 @@ Les scripts d'ingestion utilisent les chemins suivants par défaut :
 - relations CCJA : `data/knowledge_graphs/ccja_jurisprudence/ccja_corpus/ohada_graph/` ;
 - documents et segments JSON/JSONL : `02_PROCESSED_JSON/`.
 
-Le corpus CCJA est traité séparément des PDF. Les segments produits par l'importeur peuvent servir de base à une étape ultérieure d'indexation, mais leur création ne construit pas à elle seule une base vectorielle.
+Le corpus CCJA est traité séparément des PDF. L'indexeur inclut les décisions, leurs segments et les relations disponibles dans les JSONL ; la commande de construction crée un index plein texte SQLite local, pas un index vectoriel ou une base distribuée.
 
 Pour chaque jeu de données publié ou partagé, documenter au minimum l'organisation source, l'URL ou la référence, la juridiction, la date/version, la licence et les transformations appliquées. Vérifier les droits de réutilisation et de redistribution avant de publier des documents ou des résultats dérivés. Les sorties produites localement ne sont pas nécessairement incluses dans le dépôt Git.
 
@@ -155,7 +159,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Utilisation des pipelines disponibles
+## Utilisation
 
 Lancer le pipeline PDF depuis la racine du dépôt :
 
@@ -180,6 +184,88 @@ Les paramètres `--csv`, `--graph-dir`, `--output`, `--chunks-output`, `--chunk-
 
 ```bash
 python -m src.ingestion.ingest_ccja --help
+```
+
+### Construire ou actualiser la base de connaissances
+
+Depuis la racine du dépôt, après avoir produit les documents JSON et JSONL :
+
+```bash
+python -m src.app build-index
+```
+
+Cette commande indexe les JSON dans `02_PROCESSED_JSON/`, ainsi que les décisions et segments CCJA s'ils sont présents. L'index SQLite est créé localement dans `data/knowledge_base/concordia.sqlite3` et n'est pas ajouté à Git. Chaque reconstruction remplace son contenu avec les fichiers présents à cet instant.
+
+### Poser une question documentaire
+
+```bash
+python -m src.app ask "Quelles dispositions concernent l'immatriculation au RCCM ?"
+```
+
+La réponse restitue des extraits de l'index avec le titre, l'article ou la section, la page et le fichier source. Cette première version utilise SQLite FTS5 ; elle ne génère pas de synthèse par modèle et ne constitue pas un avis juridique.
+
+### Router une demande
+
+La commande `route` reconnaît de façon déterministe les deux parcours disponibles : recherche juridique et audit documentaire. Elle n'utilise pas de modèle d'intention ; une demande ambiguë ou non reconnue est refusée plutôt que routée par défaut. Pour lever l'ambiguïté, préciser `--intent`. Un audit nécessite toujours un scénario JSON :
+
+```bash
+python -m src.app route "Quels articles parlent de l'immatriculation ?"
+python -m src.app route "Lancer un audit de conformité" --scenario data/scenarios/cameroon_company_document_review.json
+python -m src.app route "Auditer ce dossier et rechercher les articles applicables" --intent document_audit --scenario data/scenarios/cameroon_company_document_review.json
+```
+
+Le routeur couvre uniquement ces deux parcours ; les analyses institutionnelles, les modèles génératifs et les décisions automatiques ne sont pas pris en charge.
+
+### Mesurer la recherche documentaire
+
+Un premier benchmark de deux questions et de leurs articles sources attendus est fourni dans `data/evaluation/legal_retrieval.json`. Les références ont été contrôlées dans les fichiers du corpus ; ce jeu n'a pas encore été validé par un expert juridique. Il mesure le rappel, le rang réciproque, la présence de citations et la latence, sans noter la justesse d'une interprétation juridique :
+
+```bash
+python -m src.app evaluate-search data/evaluation/legal_retrieval.json --top-k 5
+```
+
+Cette mesure constitue une base FTS de départ. Les modes vectoriel et hybride sont disponibles, mais leurs scores sur ce petit jeu ne seront interprétés qu'après revue des questions et références par une personne qualifiée ; ils ne sont pas généralisables à l'ensemble des recherches.
+
+### Activer la recherche vectorielle locale
+
+Le parcours FTS reste le défaut. Pour calculer localement les vecteurs des passages, installer les dépendances, puis reconstruire l'index avec le modèle multilingue Sentence Transformers (384 dimensions) :
+
+```bash
+pip install -r requirements.txt
+python -m src.app build-index --vector-model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+```
+
+Le premier lancement télécharge les poids du modèle depuis Hugging Face ; l'encodage des documents et des requêtes s'exécute ensuite sur CPU. Les vecteurs sont conservés dans la base SQLite locale. Le choix du mode reste explicite :
+
+```bash
+python -m src.app ask "Quel texte porte le Code électoral camerounais ?" --retrieval-mode fts
+python -m src.app ask "Quel identifiant commercial doit apparaître dans un avis publié par une société ?" --retrieval-mode vector
+python -m src.app ask "Quel identifiant commercial doit apparaître dans un avis publié par une société ?" --retrieval-mode hybrid
+python -m src.app evaluate-search data/evaluation/legal_retrieval.json --retrieval-mode hybrid
+```
+
+Le mode hybride fusionne les classements lexical et vectoriel par Reciprocal Rank Fusion ; les scores bruts des deux moteurs ne sont pas comparables. La recherche vectorielle ne génère pas de réponse : les résultats restent des extraits de documents avec leurs citations. Le modèle local n'est pas encore évalué sur un benchmark validé par un juriste.
+
+### Lancer un scénario de revue progressive
+
+```bash
+python -m src.app audit data/scenarios/cameroon_company_document_review.json
+```
+
+Le scénario d'exemple transmet un dossier initial, puis une pièce complémentaire. Les événements sont évalués dans l'ordre ; les pièces manquantes sont celles déclarées par le scénario, et non une conclusion de non-conformité légale. Le rapport JSON et son journal JSONL sont écrits localement dans `data/audits/`.
+
+### Consulter les relations CCJA indexées
+
+```bash
+python -m src.app graph OHADA-CCJA-00000
+```
+
+Ces relations sont celles présentes dans le corpus importé ; elles ne sont pas une interprétation juridique autonome.
+
+### Tests
+
+```bash
+python -m unittest discover -s tests
 ```
 
 ## Livrables de la compétition
