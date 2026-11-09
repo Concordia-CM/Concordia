@@ -6,3 +6,15 @@ __pycache__/
 *.log
 data/knowledge_base/
 data/audits/
+# Données brutes et PDF (à ne jamais versionner)
+data/raw_legal_docs/
+*.pdf
+
+# Données transformées (optionnel, selon si tu veux versionner les JSON ou non)
+# 02_PROCESSED_JSON/
+
+# Environnement virtuel et caches Python
+venv/
+__pycache__/
+*.pyc
+.DS_Store
