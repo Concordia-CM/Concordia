@@ -26,6 +26,7 @@ def run_scenario(
     scenario_path: str | Path,
     knowledge_base: KnowledgeBase,
     output_dir: str | Path,
+    use_llm: bool = False,
 ) -> dict[str, Any]:
     source_path = Path(scenario_path)
     try:
@@ -47,7 +48,7 @@ def run_scenario(
         institution = institutional_config.get("institution")
         mandate = institutional_config.get("mandate")
         jurisdiction = institutional_config.get("jurisdiction")
-        generate = institutional_config.get("generate", False)
+        generate = institutional_config.get("generate", use_llm)
         if not isinstance(institution, str) or not institution.strip():
             raise ValueError("institutional_review.institution doit être un texte non vide.")
         if not isinstance(mandate, str) or not mandate.strip():
@@ -87,7 +88,12 @@ def run_scenario(
         for check_value in checks:
             if not isinstance(check_value, dict):
                 raise ValueError(f"Chaque contrôle de l'événement {event_id} doit être un objet.")
-            check_result = auditor.assess_check(check_value, facts, documents)
+            check_result = auditor.assess_check(
+                check_value,
+                facts,
+                documents,
+                use_llm=use_llm,
+            )
             if institutional_agent is not None:
                 check_result["institutional_analysis"] = institutional_agent.analyze(
                     check_result["question"],
@@ -95,6 +101,7 @@ def run_scenario(
                     mandate=mandate,
                     jurisdiction=jurisdiction,
                     use_llm=generate,
+                    include_doctrine=True,
                 )
             check_results.append(check_result)
 
@@ -129,6 +136,14 @@ def run_scenario(
                                 "citation": source["citation"],
                             }
                             for source in item["sources"]
+                        ],
+                        "doctrine_sources": [
+                            {
+                                "record_id": source["record_id"],
+                                "section_id": source["section_id"],
+                                "citation": source["citation"],
+                            }
+                            for source in item.get("doctrine_sources", [])
                         ],
                     }
                     for item in check_results

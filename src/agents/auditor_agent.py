@@ -20,6 +20,7 @@ class AuditorAgent:
         facts: list[str],
         documents_received: list[str],
         document_contents: dict[str, str] | None = None,
+        use_llm: bool = False,
     ) -> dict[str, Any]:
         if not isinstance(check, dict):
             raise ValueError("Chaque contrôle doit être un objet.")
@@ -69,8 +70,27 @@ class AuditorAgent:
             if item not in evidence_found
         ]
 
-        result = self.legal_agent.answer(question)
+        analysis_context = (
+            "Type de tâche : analyse d'audit documentaire. "
+            "Évalue les éléments fournis sans conclure automatiquement à la conformité.\n"
+            f"Faits déclarés : {facts}\n"
+            f"Pièces déclarées reçues : {documents_received}\n"
+            f"Éléments attendus selon le scénario : {expected}\n"
+            f"Éléments attendus non repérés : {missing_evidence}\n"
+            "Une pièce non déclarée ne prouve pas une violation. "
+            "Sépare les faits, les règles citées et les points restant à vérifier."
+        )
+        if use_llm:
+            result = self.legal_agent.answer(
+                question,
+                use_llm=True,
+                include_doctrine=True,
+                analysis_context=analysis_context,
+            )
+        else:
+            result = self.legal_agent.answer(question, include_doctrine=True)
         sources = result["sources"]
+        doctrine_sources = result.get("doctrine_sources", [])
         policy = result.get("policy")
         uncertainties = []
         if not sources:
@@ -97,6 +117,12 @@ class AuditorAgent:
         recommendations = [
             "Faire valider les faits et les références par un responsable juridique ou conformité."
         ]
+        if doctrine_sources:
+            recommendations.insert(
+                0,
+                "Examiner les pistes doctrinales séparément ; elles ne prouvent pas "
+                "l'existence d'une obligation juridique.",
+            )
         if missing_evidence:
             recommendations.insert(
                 0,
@@ -124,6 +150,13 @@ class AuditorAgent:
                 else "human_review_required"
             ),
             "sources": sources,
+            "analysis": (
+                result["answer"]
+                if result.get("answer_mode") == "ollama_rag"
+                else None
+            ),
+            "doctrine_sources": doctrine_sources,
+            "doctrine_notice": result.get("doctrine_notice"),
             "uncertainties": uncertainties,
             "recommendations": recommendations,
         }

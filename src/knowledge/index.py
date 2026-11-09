@@ -46,7 +46,7 @@ _STOP_WORDS = {
 }
 
 RetrievalMode = Literal["fts", "vector", "hybrid"]
-SourceScope = Literal["legal_texts", "case_law", "all"]
+SourceScope = Literal["legal_texts", "case_law", "doctrine", "all"]
 
 
 _SOURCE_SCOPE_PREDICATES: dict[SourceScope, str] = {
@@ -58,6 +58,12 @@ _SOURCE_SCOPE_PREDICATES: dict[SourceScope, str] = {
         ") != 'doctrine_or_manual'"
     ),
     "case_law": "AND c.entity_type = 'CCJA_Decision'",
+    "doctrine": (
+        "AND COALESCE("
+        "json_extract(c.metadata_json, '$.document.document_category'), "
+        "''"
+        ") = 'doctrine_or_manual'"
+    ),
     "all": "",
 }
 
@@ -131,6 +137,14 @@ class SearchHit:
             "metadata": self.metadata,
             "score": self.score,
         }
+
+
+def is_doctrine_hit(hit: SearchHit) -> bool:
+    document_metadata = hit.metadata.get("document")
+    return (
+        isinstance(document_metadata, dict)
+        and document_metadata.get("document_category") == "doctrine_or_manual"
+    )
 
 
 def _json_object(value: Any) -> dict[str, Any]:
@@ -444,6 +458,31 @@ class KnowledgeBase:
                 );
                 CREATE INDEX IF NOT EXISTS relationships_source
                     ON relationships(source_document_id, relation_type);
+                CREATE TABLE IF NOT EXISTS knowledge_graph_nodes (
+                    node_id TEXT PRIMARY KEY,
+                    node_type TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    document_id TEXT NOT NULL REFERENCES documents(document_id),
+                    record_id TEXT NOT NULL,
+                    section_id TEXT NOT NULL,
+                    attributes_json TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS knowledge_graph_nodes_record
+                    ON knowledge_graph_nodes(record_id, section_id);
+                CREATE TABLE IF NOT EXISTS knowledge_graph_edges (
+                    source_node_id TEXT NOT NULL
+                        REFERENCES knowledge_graph_nodes(node_id) ON DELETE CASCADE,
+                    target_node_id TEXT NOT NULL
+                        REFERENCES knowledge_graph_nodes(node_id) ON DELETE CASCADE,
+                    relation_type TEXT NOT NULL,
+                    evidence TEXT NOT NULL,
+                    attributes_json TEXT NOT NULL,
+                    PRIMARY KEY (source_node_id, target_node_id, relation_type)
+                );
+                CREATE INDEX IF NOT EXISTS knowledge_graph_edges_source
+                    ON knowledge_graph_edges(source_node_id, relation_type);
+                CREATE INDEX IF NOT EXISTS knowledge_graph_edges_target
+                    ON knowledge_graph_edges(target_node_id, relation_type);
                 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
                     title, text, source_file,
                     content='chunks',
@@ -454,6 +493,8 @@ class KnowledgeBase:
             )
             connection.execute("BEGIN")
             connection.execute("INSERT INTO chunks_fts(chunks_fts) VALUES ('delete-all')")
+            connection.execute("DELETE FROM knowledge_graph_edges")
+            connection.execute("DELETE FROM knowledge_graph_nodes")
             connection.execute("DELETE FROM relationships")
             connection.execute("DELETE FROM chunks")
             connection.execute("DELETE FROM documents")
@@ -469,6 +510,7 @@ class KnowledgeBase:
                 domain = str(record.get("domain") or "")
                 entity_type = str(record.get("entity_type") or "")
                 metadata = _clean_metadata(record.get("metadata"))
+                document_node_id = f"document:{document_id}"
                 connection.execute(
                     """
                     INSERT OR REPLACE INTO documents
@@ -485,7 +527,158 @@ class KnowledgeBase:
                         json.dumps(metadata, ensure_ascii=False),
                     ),
                 )
+                connection.execute(
+                    """
+                    INSERT INTO knowledge_graph_nodes
+                    (node_id, node_type, label, document_id, record_id, section_id, attributes_json)
+                    VALUES (?, 'document', ?, ?, ?, '', ?)
+                    """,
+                    (
+                        document_node_id,
+                        title,
+                        document_id,
+                        record_id,
+                        json.dumps(
+                            {
+                                "source_file": source_file,
+                                "domain": domain,
+                                "entity_type": entity_type,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    ),
+                )
                 document_count += 1
+                sections = record.get("sections")
+                section_values = [
+                    _json_object(value)
+                    for value in sections
+                ] if isinstance(sections, list) else []
+                article_sections: dict[str, list[tuple[str, str]]] = {}
+                for section_index, section in enumerate(section_values):
+                    section_id = str(section.get("section_id") or f"section-{section_index + 1}")
+                    article_number = str(section.get("article_number") or "")
+                    section_title = str(section.get("title") or article_number or section_id)
+                    section_node_id = f"section:{document_id}:{section_id}"
+                    connection.execute(
+                        """
+                        INSERT OR IGNORE INTO knowledge_graph_nodes
+                        (node_id, node_type, label, document_id, record_id, section_id, attributes_json)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            section_node_id,
+                            "article" if article_number else "section",
+                            section_title,
+                            document_id,
+                            record_id,
+                            section_id,
+                            json.dumps(
+                                {"article_number": article_number},
+                                ensure_ascii=False,
+                            ),
+                        ),
+                    )
+                    connection.execute(
+                        """
+                        INSERT OR IGNORE INTO knowledge_graph_edges
+                        (source_node_id, target_node_id, relation_type, evidence, attributes_json)
+                        VALUES (?, ?, 'contains', '', '{}')
+                        """,
+                        (document_node_id, section_node_id),
+                    )
+                    if article_number:
+                        article_sections.setdefault(article_number.casefold(), []).append(
+                            (section_id, section_node_id)
+                        )
+
+                    hierarchy_path = section.get("hierarchy_path")
+                    previous_node_id = document_node_id
+                    if isinstance(hierarchy_path, list):
+                        path_identity: list[dict[str, str]] = []
+                        for level in hierarchy_path:
+                            if not isinstance(level, dict):
+                                continue
+                            level_identity = {
+                                "type": str(level.get("type") or ""),
+                                "number": str(level.get("number") or ""),
+                                "title": str(level.get("title") or ""),
+                            }
+                            path_identity.append(level_identity)
+                            hierarchy_node_id = (
+                                f"hierarchy:{document_id}:"
+                                + json.dumps(path_identity, ensure_ascii=False, sort_keys=True)
+                            )
+                            hierarchy_label = " ".join(
+                                value
+                                for value in (
+                                    level_identity["type"],
+                                    level_identity["number"],
+                                    level_identity["title"],
+                                )
+                                if value
+                            )
+                            connection.execute(
+                                """
+                                INSERT OR IGNORE INTO knowledge_graph_nodes
+                                (node_id, node_type, label, document_id, record_id, section_id, attributes_json)
+                                VALUES (?, 'hierarchy', ?, ?, ?, '', ?)
+                                """,
+                                (
+                                    hierarchy_node_id,
+                                    hierarchy_label,
+                                    document_id,
+                                    record_id,
+                                    json.dumps(level_identity, ensure_ascii=False),
+                                ),
+                            )
+                            connection.execute(
+                                """
+                                INSERT OR IGNORE INTO knowledge_graph_edges
+                                (source_node_id, target_node_id, relation_type, evidence, attributes_json)
+                                VALUES (?, ?, 'contains', '', '{}')
+                                """,
+                                (previous_node_id, hierarchy_node_id),
+                            )
+                            previous_node_id = hierarchy_node_id
+                    if previous_node_id != document_node_id:
+                        connection.execute(
+                            """
+                            INSERT OR IGNORE INTO knowledge_graph_edges
+                            (source_node_id, target_node_id, relation_type, evidence, attributes_json)
+                            VALUES (?, ?, 'contains', '', '{}')
+                            """,
+                            (previous_node_id, section_node_id),
+                        )
+
+                for section_index, section in enumerate(section_values):
+                    source_section_id = str(
+                        section.get("section_id") or f"section-{section_index + 1}"
+                    )
+                    source_node_id = f"section:{document_id}:{source_section_id}"
+                    section_text = section.get("content")
+                    if not isinstance(section_text, str):
+                        continue
+                    for reference in _ARTICLE_REFERENCE.finditer(section_text):
+                        target_articles = article_sections.get(
+                            reference.group("number").casefold(),
+                            [],
+                        )
+                        for target_section_id, target_node_id in target_articles:
+                            if target_section_id == source_section_id:
+                                continue
+                            connection.execute(
+                                """
+                                INSERT OR IGNORE INTO knowledge_graph_edges
+                                (source_node_id, target_node_id, relation_type, evidence, attributes_json)
+                                VALUES (?, ?, 'cites_article', ?, '{}')
+                                """,
+                                (
+                                    source_node_id,
+                                    target_node_id,
+                                    reference.group(0),
+                                ),
+                            )
                 for chunk in _record_chunks(document_id, record):
                     connection.execute(
                         """
@@ -605,10 +798,18 @@ class KnowledgeBase:
             connection.execute("INSERT INTO chunks_fts(chunks_fts) VALUES ('rebuild')")
             connection.commit()
             self._vector_cache = None
+            graph_node_count = connection.execute(
+                "SELECT COUNT(*) FROM knowledge_graph_nodes"
+            ).fetchone()[0]
+            graph_edge_count = connection.execute(
+                "SELECT COUNT(*) FROM knowledge_graph_edges"
+            ).fetchone()[0]
             return {
                 "documents": document_count,
                 "chunks": chunk_count,
                 "relationships": relationship_count,
+                "graph_nodes": graph_node_count,
+                "graph_edges": graph_edge_count,
             }
         except Exception:
             connection.rollback()
@@ -713,13 +914,15 @@ class KnowledgeBase:
             raise ValueError(f"Périmètre de sources inconnu : {source_scope}.")
         if not question.strip():
             return []
+        candidate_limit = max(limit * 30, 100)
         if retrieval_mode == "fts":
-            return self._search_fts(question, limit, source_scope)
+            hits = self._search_fts(question, candidate_limit, source_scope)
+            return self._add_graph_context(hits[:limit], source_scope, limit)
 
-        vector_hits = self._search_vectors(question, limit, source_scope)
+        vector_hits = self._search_vectors(question, candidate_limit, source_scope)
         if retrieval_mode == "vector":
-            return vector_hits
-        fts_hits = self._search_fts(question, limit, source_scope)
+            return self._add_graph_context(vector_hits[:limit], source_scope, limit)
+        fts_hits = self._search_fts(question, candidate_limit, source_scope)
         fused: dict[tuple[str, str, str, str], tuple[SearchHit, float]] = {}
         for weight, hits in ((_FTS_RRF_WEIGHT, fts_hits), (1.0, vector_hits)):
             for rank, hit in enumerate(hits, start=1):
@@ -729,14 +932,122 @@ class KnowledgeBase:
                     hit,
                     (previous[1] if previous else 0.0) + weight / (_RRF_K + rank),
                 )
-        return [
+        hits = [
             replace(hit, score=score)
             for hit, score in sorted(
                 fused.values(),
                 key=lambda item: item[1],
                 reverse=True,
-            )[:limit]
+            )
         ]
+        lexical_keys = {
+            (hit.document_id, hit.section_id, hit.source_field, hit.text)
+            for hit in fts_hits
+        }
+        hits = [
+            hit
+            for hit in hits
+            if (
+                hit.document_id,
+                hit.section_id,
+                hit.source_field,
+                hit.text,
+            )
+            in lexical_keys
+        ] or hits
+        return self._add_graph_context(hits[:limit], source_scope, limit)
+
+    def _add_graph_context(
+        self,
+        primary_hits: list[SearchHit],
+        source_scope: SourceScope,
+        limit: int,
+    ) -> list[SearchHit]:
+        if not primary_hits or len(primary_hits) >= limit:
+            return primary_hits
+        if not self.database_path.is_file():
+            return primary_hits
+
+        connection = self._connect()
+        try:
+            graph_table = connection.execute(
+                """
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table' AND name = 'knowledge_graph_edges'
+                """
+            ).fetchone()
+            if graph_table is None:
+                raise RuntimeError(
+                    "L'index ne contient pas le graphe documentaire. "
+                    "Reconstruisez-le avec `python -m src.app build-index`."
+                )
+            seed_node_ids = [
+                f"section:{hit.document_id}:{hit.section_id}"
+                for hit in primary_hits
+                if hit.section_id
+            ]
+            if not seed_node_ids:
+                return primary_hits
+            placeholders = ",".join("?" for _ in seed_node_ids)
+            source_filter = _SOURCE_SCOPE_PREDICATES[source_scope]
+            rows = connection.execute(
+                f"""
+                SELECT DISTINCT c.*, edge.relation_type AS graph_relation
+                FROM knowledge_graph_edges AS edge
+                JOIN knowledge_graph_nodes AS seed
+                  ON seed.node_id = edge.source_node_id
+                JOIN knowledge_graph_nodes AS target
+                  ON target.node_id = edge.target_node_id
+                JOIN chunks AS c
+                  ON c.document_id = target.document_id
+                 AND c.section_id = target.section_id
+                WHERE edge.source_node_id IN ({placeholders})
+                  AND edge.relation_type = 'cites_article'
+                  {source_filter}
+                """,
+                tuple(seed_node_ids),
+            ).fetchall()
+        finally:
+            connection.close()
+
+        seen = {
+            (hit.document_id, hit.section_id, hit.source_field, hit.text)
+            for hit in primary_hits
+        }
+        graph_hits: list[SearchHit] = []
+        for row in rows:
+            identity = (
+                row["document_id"],
+                row["section_id"],
+                row["source_field"],
+                row["text"],
+            )
+            if identity in seen:
+                continue
+            seen.add(identity)
+            metadata = json.loads(row["metadata_json"])
+            metadata["retrieval_path"] = "knowledge_graph:cites_article"
+            graph_hits.append(
+                SearchHit(
+                    document_id=row["document_id"],
+                    record_id=row["record_id"],
+                    title=row["title"],
+                    source_file=row["source_file"],
+                    domain=row["domain"],
+                    entity_type=row["entity_type"],
+                    section_id=row["section_id"],
+                    section_title=row["section_title"],
+                    article_number=row["article_number"],
+                    page_start=row["page_start"],
+                    page_end=row["page_end"],
+                    source_field=row["source_field"],
+                    text=row["text"],
+                    excerpt=row["text"][:300],
+                    metadata=metadata,
+                    score=0.0,
+                )
+            )
+        return primary_hits + graph_hits[: limit - len(primary_hits)]
 
     def _search_fts(
         self,
@@ -759,11 +1070,7 @@ class KnowledgeBase:
             article_number = article_match.group("number") if article_match else None
             article_filter = "AND lower(c.article_number) = lower(?)" if article_number else ""
             source_filter = _SOURCE_SCOPE_PREDICATES[source_scope]
-            candidate_limit = (
-                max(limit * 60, 300)
-                if _RCCM_QUERY.search(question)
-                else max(limit * 30, 100)
-            )
+            candidate_limit = limit
             parameters: tuple[Any, ...] = (expression, article_number, candidate_limit)
             if article_number is None:
                 parameters = (expression, candidate_limit)
@@ -953,7 +1260,11 @@ class KnowledgeBase:
         if query_norm == 0:
             raise ValueError("Le modèle a retourné un vecteur de requête nul.")
         similarities = vectors @ (query[0] / query_norm)
-        candidate_limit = max(limit * 30, 100) if _RCCM_QUERY.search(question) else limit
+        candidate_limit = (
+            max(limit * 30, 100)
+            if _RCCM_QUERY.search(question)
+            else limit
+        )
 
         connection = self._connect()
         try:
@@ -1049,6 +1360,63 @@ class KnowledgeBase:
                     ORDER BY r.relation_type, r.target_label
                     """,
                     (record_id,),
+                )
+            ]
+        finally:
+            connection.close()
+
+    def graph_neighborhood(
+        self,
+        record_id: str,
+        section_id: str | None = None,
+    ) -> list[dict[str, str]]:
+        """Retourne les relations structurelles et citations légales indexées."""
+        if not record_id.strip():
+            raise ValueError("record_id ne peut pas être vide.")
+        if section_id is not None and not section_id.strip():
+            raise ValueError("section_id doit être omis ou non vide.")
+        if not self.database_path.is_file():
+            raise FileNotFoundError(
+                f"Index introuvable : {self.database_path}. "
+                "Construisez-le avec la commande build-index."
+            )
+        source_section_filter = ""
+        target_section_filter = ""
+        parameters: tuple[str, ...] = (record_id, record_id)
+        if section_id is not None:
+            source_section_filter = "AND source.section_id = ?"
+            target_section_filter = "AND target.section_id = ?"
+            parameters = (record_id, section_id, record_id, section_id)
+        connection = self._connect()
+        try:
+            return [
+                dict(row)
+                for row in connection.execute(
+                    f"""
+                    SELECT edge.relation_type, edge.evidence,
+                           source.node_type AS source_type,
+                           source.label AS source_label,
+                           source.record_id AS source_record_id,
+                           source.section_id AS source_section_id,
+                           target.node_type AS target_type,
+                           target.label AS target_label,
+                           target.record_id AS target_record_id,
+                           target.section_id AS target_section_id
+                    FROM knowledge_graph_edges AS edge
+                    JOIN knowledge_graph_nodes AS source
+                      ON source.node_id = edge.source_node_id
+                    JOIN knowledge_graph_nodes AS target
+                      ON target.node_id = edge.target_node_id
+                    WHERE (
+                        source.record_id = ?
+                        {source_section_filter}
+                    ) OR (
+                        target.record_id = ?
+                        {target_section_filter}
+                    )
+                    ORDER BY edge.relation_type, source.label, target.label
+                    """,
+                    parameters,
                 )
             ]
         finally:

@@ -11,6 +11,7 @@ from src.knowledge.index import (
     RetrievalMode,
     SourceScope,
     format_documentary_answer,
+    is_doctrine_hit,
 )
 from src.llm.ollama_client import OllamaClient
 from src.policy.legal_policy import LegalPolicyGuard
@@ -42,6 +43,7 @@ class InstitutionalAgent:
         retrieval_mode: RetrievalMode = "fts",
         use_llm: bool = False,
         source_scope: SourceScope = "legal_texts",
+        include_doctrine: bool = False,
     ) -> dict[str, Any]:
         for field, value in (
             ("question", question),
@@ -61,6 +63,26 @@ class InstitutionalAgent:
             retrieval_mode=retrieval_mode,
             source_scope=source_scope,
         )
+        doctrine_hits = [
+            hit
+            for hit in hits
+            if is_doctrine_hit(hit)
+        ]
+        legal_hits = [
+            hit
+            for hit in hits
+            if not is_doctrine_hit(hit)
+        ]
+        if source_scope == "doctrine":
+            doctrine_hits = hits
+            legal_hits = []
+        elif include_doctrine and source_scope != "all":
+            doctrine_hits = self.knowledge_base.search(
+                question,
+                limit=self.top_k,
+                retrieval_mode=retrieval_mode,
+                source_scope="doctrine",
+            )
         sources = tuple(
             SourceReference(
                 record_id=hit.record_id,
@@ -68,7 +90,16 @@ class InstitutionalAgent:
                 citation=hit.citation,
                 text=hit.text,
             )
-            for hit in hits
+            for hit in legal_hits
+        )
+        doctrine_sources = tuple(
+            SourceReference(
+                record_id=hit.record_id,
+                section_id=hit.section_id,
+                citation=hit.citation,
+                text=hit.text,
+            )
+            for hit in doctrine_hits
         )
         claims = ()
         if use_llm and sources:
@@ -85,15 +116,24 @@ class InstitutionalAgent:
             claims = client.generate_claims(institutional_prompt, sources)
 
         summary = (
-            format_documentary_answer(question, hits)
-            if hits
-            else "Aucun passage correspondant n'a été retrouvé dans l'index."
+            format_documentary_answer(question, legal_hits)
+            if legal_hits
+            else "Aucun passage de texte juridique correspondant n'a été retrouvé."
         )
+        if doctrine_hits:
+            summary += (
+                "\n\nÉclairage doctrinal — explications et pistes de réflexion, "
+                "sans valeur d'obligation juridique :\n"
+                + "\n\n".join(
+                    f"- {hit.citation}\n  {hit.excerpt or hit.text}"
+                    for hit in doctrine_hits
+                )
+            )
         result = AgentResult(
             role="institutional",
-            status="completed" if hits and (not use_llm or claims) else "needs_review",
+            status="completed" if legal_hits and (not use_llm or claims) else "needs_review",
             summary=summary,
-            sources=sources,
+            sources=sources + doctrine_sources,
             claims=claims,
             uncertainties=(
                 "Cette analyse applique uniquement le mandat fourni comme contexte de "
@@ -105,6 +145,8 @@ class InstitutionalAgent:
         policy = LegalPolicyGuard(self.knowledge_base).evaluate(result)
 
         if policy.decision == "blocked":
+            doctrine_hits = []
+            doctrine_sources = ()
             result = AgentResult(
                 role="institutional",
                 status="failed",
@@ -115,18 +157,28 @@ class InstitutionalAgent:
             )
         elif claims:
             source_by_key = {source.key: source for source in sources}
+            claim_summary = "\n\n".join(
+                f"- {claim.text}\n  Sources : "
+                + "; ".join(
+                    source_by_key[source_ref].citation
+                    for source_ref in claim.source_refs
+                )
+                for claim in claims
+            )
+            if doctrine_hits:
+                claim_summary += (
+                    "\n\nÉclairage doctrinal — explications et pistes de réflexion, "
+                    "sans valeur d'obligation juridique :\n"
+                    + "\n\n".join(
+                        f"- {hit.citation}\n  {hit.excerpt or hit.text}"
+                        for hit in doctrine_hits
+                    )
+                )
             result = AgentResult(
                 role="institutional",
                 status=result.status,
-                summary="\n\n".join(
-                    f"- {claim.text}\n  Sources : "
-                    + "; ".join(
-                        source_by_key[source_ref].citation
-                        for source_ref in claim.source_refs
-                    )
-                    for claim in claims
-                ),
-                sources=sources,
+                summary="Sources hors doctrine :\n" + claim_summary,
+                sources=sources + doctrine_sources,
                 claims=claims,
                 uncertainties=result.uncertainties,
             )
@@ -135,6 +187,13 @@ class InstitutionalAgent:
             "mandate": mandate.strip(),
             "jurisdiction": jurisdiction.strip() if jurisdiction else None,
             "source_scope": source_scope,
+            "doctrine_sources": [hit.to_dict() for hit in doctrine_hits],
+            "doctrine_notice": (
+                "La doctrine apporte un éclairage ou des pistes de réflexion ; "
+                "elle ne constitue pas, à elle seule, une obligation juridique."
+                if doctrine_hits
+                else None
+            ),
             "agent_result": result.to_dict(),
             "policy": policy.to_dict(),
         }

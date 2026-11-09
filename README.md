@@ -4,7 +4,7 @@
 
 Concordia est un prototype conçu pour le **AI for Good Sandbox Hackathon – United Arab Emirates**, organisé par l'ITU AI for Good Lab. Il explore comment une base de connaissances juridique et réglementaire contextualisée peut alimenter des agents IA spécialisés, coordonnés pour analyser des situations de conformité et rendre leurs conclusions vérifiables.
 
-> **État du projet :** l'ingestion, un index plein texte local interrogeable, une recherche avec citations, une recherche vectorielle locale optionnelle, une génération Ollama optionnelle, une revue de scénarios et une première interface web locale pour le dépôt de documents sont disponibles. Les modèles et résultats restent expérimentaux et doivent être évalués par des spécialistes. L'orchestration complète multi-agent et la validation juridique restent à développer. Ce prototype n'est ni un avis juridique ni une certification de conformité à ITU-T Y.3172.
+> **État du projet :** l'ingestion, un index plein texte local avec graphe documentaire, une recherche avec citations, une recherche vectorielle locale optionnelle, une rédaction Ollama à partir des passages retrouvés, une revue de scénarios et une première interface web locale pour le dépôt de documents sont disponibles. Les modèles et résultats restent expérimentaux et doivent être évalués par des spécialistes. L'orchestration complète multi-agent et la validation juridique restent à développer. Ce prototype n'est ni un avis juridique ni une certification de conformité à ITU-T Y.3172.
 
 ## Contexte du hackathon
 
@@ -80,7 +80,7 @@ Cette architecture reprend le parcours présenté pour le projet : **documents s
 | Sources (SRC) | Documents publics et documents métier autorisés, avec juridiction, date, provenance et licence | Des PDF juridiques sont présents localement ; le corpus doit être étendu et sa provenance documentée |
 | Collecte et prétraitement (C/PP) | Extraction PDF, OCR si nécessaire, normalisation et segmentation | Pipelines PDF et CCJA disponibles |
 | Base de connaissances | Index plein texte et vectoriel, métadonnées, références et relations CCJA | Index SQLite FTS5 ; la recherche juridique privilégie par défaut les textes et exclut la doctrine/manuels et les arrêts CCJA ; embeddings multilingues optionnels |
-| Modèles et agents (M) | Recherche fondée sur les sources, analyse documentaire et rôles spécialisés | Agent juridique, agent d'audit documentaire et agent institutionnel ; synthèse Ollama explicitement activée |
+| Modèles et agents (M) | Recherche fondée sur les sources, analyse documentaire et rôles spécialisés | Agent juridique, agent d'audit documentaire et agent institutionnel ; rédaction Ollama activée par défaut en CLI |
 | Politique et coordination | Contrôles de provenance, mandats, protocole d'échange et désaccords entre agents | Première Policy déterministe : vérification exacte des passages/citations indexés et revue humaine obligatoire ; orchestration multi-agent et arbitrage à construire |
 | Scénarios et application | Événements publiés progressivement et restitution | Scénarios JSON via CLI et première interface web locale avec dépôt confidentiel de PDF/DOCX |
 | Audit et supervision | Sources citées, résultats observables, limites, validation humaine et journal | Rapport JSON/Markdown et journal JSONL local ; revue humaine requise |
@@ -141,7 +141,9 @@ Les scénarios et résultats devront être évalués sur des cas représentatifs
 
 ### Brouillon de préparation comptable
 
-L'interface web propose une checklist indicative de préparation pour une revue comptable, organisée par rubriques de pièces et contrôles documentaires. Le modèle est enregistré dans [`data/checklists/accounting_readiness_draft.json`](data/checklists/accounting_readiness_draft.json), reste explicitement au statut `draft_unvalidated` et les identifiants sélectionnés sont consignés dans le rapport. Il s'inspire des catégories du texte commercial partagé, mais n'en reprend ni les seuils ni les affirmations juridiques. Il n'est ni exhaustif ni validé juridiquement : les rubriques sélectionnées doivent être adaptées au mandat et vérifiées par un professionnel. Les recherches lexicales de pièces ne déterminent pas leur authenticité, suffisance ou conformité.
+L'interface web propose un catalogue indicatif de préparation pour une revue comptable, organisé par rubriques de pièces et contrôles documentaires. Le modèle est enregistré dans [`data/checklists/accounting_readiness_draft.json`](data/checklists/accounting_readiness_draft.json) : ses huit contrôles portent chacun leur statut, leur base déclarée et leurs références juridiques. À ce jour, ils sont tous `indicative` et aucune référence officielle n'est associée. Le modèle s'inspire des catégories du texte commercial partagé, mais n'en reprend ni les seuils ni les affirmations juridiques. Il n'est ni exhaustif ni validé juridiquement : les rubriques sélectionnées doivent être adaptées au mandat et vérifiées par un professionnel. Les recherches lexicales de pièces ne déterminent pas leur authenticité, suffisance ou conformité.
+
+Un futur contrôle `expert_validated` doit consigner le réviseur, la date de revue et, pour chaque référence, l'autorité, la citation, la juridiction, une URL, l'identifiant et la section du corpus, le fichier source, son empreinte SHA-256, la version/statut et la personne/date de vérification de son caractère officiel. Le chargeur refuse les entrées incomplètes ou incohérentes et le rapport conserve les métadonnées des contrôles utilisés. Ces champs apportent une piste d'audit, mais le logiciel ne peut pas prouver que les déclarations de revue, l'URL ou le statut juridique sont véridiques : une validation humaine reste indispensable.
 
 ## État des lieux du dépôt
 
@@ -181,7 +183,7 @@ La configuration se lit depuis les variables d'environnement :
 | `CONCORDIA_OLLAMA_MODEL` | `qwen2.5:3b` | Modèle génératif Ollama local ; définir la variable vide pour le désactiver |
 | `CONCORDIA_LLM_TIMEOUT_SECONDS` | `120` | Timeout prévu pour les appels génératifs |
 
-Le modèle par défaut est un choix de démarrage léger, pas une recommandation pour prendre des décisions juridiques. L'option `--generate` déclenche explicitement un appel Ollama ; les sorties sont limitées aux passages récupérés, leurs références sont vérifiées par Policy et une revue humaine reste obligatoire.
+Le modèle par défaut est un choix de démarrage léger, pas une recommandation pour prendre des décisions juridiques. Les commandes `ask`, `route` et `audit` utilisent Ollama par défaut pour rédiger une réponse narrative à partir des passages retrouvés ; `--extractive` affiche uniquement les extraits. Ollama ne reçoit pas de contexte juridique en l'absence de passage retrouvé. Les sorties générées sont rattachées aux sources fournies et vérifiées par Policy, mais ce contrôle vérifie la provenance, pas le raisonnement juridique ; une revue humaine reste obligatoire.
 
 Installer et lancer Ollama, puis télécharger le modèle :
 
@@ -189,11 +191,11 @@ Installer et lancer Ollama, puis télécharger le modèle :
 ollama pull qwen2.5:3b
 ```
 
-Sans `--generate`, les commandes gardent le comportement extractif et ne contactent pas Ollama. Pour activer la synthèse :
+La synthèse est activée par défaut. Pour demander explicitement une réponse extractive sans appel Ollama :
 
 ```bash
-python -m src.app ask "Quel texte porte le Code électoral camerounais ?" --generate
-python -m src.app route "Quels articles parlent de l'immatriculation ?" --generate
+python -m src.app ask "Quel texte porte le Code électoral camerounais ?" --extractive
+python -m src.app route "Quels articles parlent de l'immatriculation ?" --extractive
 ```
 
 ## Données et provenance
@@ -269,14 +271,16 @@ Cette commande indexe les JSON dans `02_PROCESSED_JSON/`, ainsi que les décisio
 python -m src.app ask "Quelles dispositions concernent l'immatriculation au RCCM ?"
 ```
 
-La commande `ask` limite par défaut les résultats aux textes juridiques : les décisions CCJA et les documents classés comme doctrine/manuels ne sont pas mélangés à ces résultats. Une requête contenant `RCCM` privilégie les articles de loi qui mentionnent le registre, y compris lorsque le texte développe l'acronyme en « Registre du Commerce et du Crédit Mobilier ». Pour une recherche de jurisprudence ou une recherche tous corpus confondus, utiliser `--source-scope case_law` ou `--source-scope all`. Ce filtre s'applique aussi aux modes vectoriel et hybride et ne nécessite pas de reconstruire l'index existant.
+La commande `ask` limite par défaut les résultats aux textes juridiques : les décisions CCJA et les documents classés comme doctrine/manuels ne sont pas mélangés à ces résultats. La recherche plein texte classe les candidats selon la couverture des termes significatifs et leur proximité ; si les termes centraux ne concordent pas, elle s'abstient au lieu de présenter des passages trouvés sur de simples mots génériques. Pour les questions qui exigent une correspondance sémantique ou des formulations différentes, construire l'index vectoriel puis choisir le mode hybride. Pour une recherche de jurisprudence ou de doctrine, utiliser `--source-scope case_law` ou `--source-scope doctrine`. L'option `--include-doctrine` conserve les textes juridiques dans leur rubrique et ajoute séparément un éclairage doctrinal ; dans les audits, cet éclairage apparaît aussi distinctement comme piste à examiner. La doctrine n'est jamais présentée comme preuve d'une obligation et n'alimente pas les affirmations juridiques générées par Ollama. `--source-scope all` reste disponible pour consulter explicitement tous les corpus. Ces filtres s'appliquent aussi aux modes vectoriel et hybride et ne nécessitent pas de reconstruire l'index existant.
 
 ```bash
 python -m src.app ask "Immatriculation au RCCM" --source-scope case_law
+python -m src.app ask "Immatriculation au RCCM" --source-scope doctrine
+python -m src.app ask "Immatriculation au RCCM" --include-doctrine
 python -m src.app ask "Immatriculation au RCCM" --source-scope all
 ```
 
-La réponse restitue des extraits de l'index avec le titre, l'article ou la section, la page et le fichier source. Cette première version utilise SQLite FTS5 ; elle ne génère pas de synthèse par modèle et ne constitue pas un avis juridique.
+Par défaut, Ollama rédige une réponse en français à partir des seuls passages retenus par la recherche ; Concordia restitue les citations correspondantes. Avec `--extractive`, la commande n'appelle pas Ollama et affiche les extraits. Si aucun passage pertinent n'est retenu, aucune génération n'est lancée. Le contrôle Policy vérifie la présence des sources dans l'index, pas que le raisonnement est juridiquement exact ; la revue humaine reste nécessaire.
 
 ### Router une demande
 
@@ -326,7 +330,7 @@ Le mode hybride fusionne les classements lexical et vectoriel par Reciprocal Ran
 python -m src.app audit data/scenarios/cameroon_company_document_review.json
 ```
 
-Le scénario d'exemple transmet un dossier initial, puis une pièce complémentaire. Les événements sont évalués dans l'ordre ; les pièces manquantes sont celles déclarées par le scénario, et non une conclusion de non-conformité légale. Le rapport JSON et son journal JSONL sont écrits localement dans `data/audits/`.
+Le scénario d'exemple transmet un dossier initial, puis une pièce complémentaire. Les événements sont évalués dans l'ordre ; les pièces manquantes sont celles déclarées par le scénario, et non une conclusion de non-conformité légale. En CLI, Ollama rédige si des sources ont été retrouvées une analyse à partir de la question, des faits, des pièces déclarées et des éléments attendus. Le rendu Markdown suit un template stable : contrôle, analyse assistée à valider, pièces manquantes, sources juridiques, éclairage doctrinal séparé, incertitudes et prochaines étapes. `--extractive` désactive la génération. Le rapport JSON et son journal JSONL sont écrits localement dans `data/audits/`.
 
 ### Consulter les relations CCJA indexées
 
@@ -335,6 +339,16 @@ python -m src.app graph OHADA-CCJA-00000
 ```
 
 Ces relations sont celles présentes dans le corpus importé ; elles ne sont pas une interprétation juridique autonome.
+
+La reconstruction de l'index crée aussi un graphe documentaire local : documents, sections, hiérarchie des titres et références explicites entre articles d'un même document. La recherche peut compléter un résultat principal par les articles qu'il cite lorsque la liste de résultats n'est pas déjà remplie. Ce graphe ne déduit pas de relations juridiques absentes du texte.
+
+```bash
+python -m src.app build-index
+python -m src.app graph-neighbors ohada-acte-uniforme-2010-droit-commercial-c554eccc \
+  --section-id ohada-acte-uniforme-2010-droit-commercial-c554eccc-livre-2-titre-2-chapitre-1-section-2-article-47
+```
+
+Après une mise à jour du code, relancer `build-index` pour créer le graphe dans la base locale existante.
 
 ### Tests
 

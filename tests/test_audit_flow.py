@@ -10,6 +10,7 @@ from src.agents.auditor_agent import AuditorAgent
 from src.agents.legal_policy_agent import LegalPolicyAgent
 from src.knowledge.index import KnowledgeBase
 from src.orchestrator.coordinator import run_scenario
+from src.sink.report_generator import render_markdown
 
 
 class AuditFlowTests(unittest.TestCase):
@@ -18,7 +19,8 @@ class AuditFlowTests(unittest.TestCase):
             def __init__(self) -> None:
                 pass
 
-            def answer(self, question: str) -> dict[str, Any]:
+            def answer(self, question: str, **kwargs: Any) -> dict[str, Any]:
+                del kwargs
                 return {"question": question, "sources": []}
 
         result = AuditorAgent(NoSourceAgent()).assess_check(
@@ -71,6 +73,29 @@ class AuditFlowTests(unittest.TestCase):
             }
             (processed_dir / "law.json").write_text(
                 json.dumps(record, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            (processed_dir / "doctrine.json").write_text(
+                json.dumps(
+                    {
+                        "record_id": "audit-guide",
+                        "document_title": "Guide pratique d'audit",
+                        "source_file": "guide-audit.pdf",
+                        "metadata": {"document_category": "doctrine_or_manual"},
+                        "sections": [
+                            {
+                                "section_id": "audit-registration",
+                                "content": (
+                                    "Pour vérifier l'immatriculation d'une société, "
+                                    "l'auditeur examine les justificatifs du registre "
+                                    "du commerce."
+                                ),
+                                "metadata": {"document_category": "doctrine_or_manual"},
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
                 encoding="utf-8",
             )
             knowledge_base = KnowledgeBase(root / "index.sqlite3")
@@ -134,7 +159,9 @@ class AuditFlowTests(unittest.TestCase):
             self.assertEqual(second_check["finding"], "human_review_required")
             self.assertEqual(second_check["missing_scenario_evidence"], [])
             self.assertTrue(second_check["sources"][0]["citation"].endswith("p. 4 — acte-uniforme.pdf"))
+            self.assertTrue(first_check["doctrine_sources"])
             institutional = first_check["institutional_analysis"]
+            self.assertTrue(institutional["doctrine_sources"])
             self.assertEqual(
                 institutional["institution"],
                 "Autorité de supervision",
@@ -148,6 +175,9 @@ class AuditFlowTests(unittest.TestCase):
                 "human_review_required",
             )
             self.assertEqual(report["assessment"], "human_review_required")
+            markdown_report = render_markdown(report)
+            self.assertIn("Éclairage doctrinal", markdown_report)
+            self.assertIn("non normatif", markdown_report)
 
             log_records = [
                 json.loads(line)
@@ -158,6 +188,10 @@ class AuditFlowTests(unittest.TestCase):
                 ["audit_started", "event_assessed", "event_assessed", "audit_completed"],
             )
             self.assertEqual(log_records[1]["checks"][0]["sources"][0]["section_id"], "article-12")
+            self.assertEqual(
+                log_records[1]["checks"][0]["doctrine_sources"][0]["section_id"],
+                "audit-registration",
+            )
             self.assertEqual(
                 log_records[1]["checks"][0]["institutional_analysis"]["policy"]["decision"],
                 "human_review_required",

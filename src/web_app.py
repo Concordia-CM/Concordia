@@ -91,14 +91,7 @@ def _create_report(
         "completed_at": now,
         "assessment": "human_review_required",
         "checklist": (
-            {
-                "checklist_id": checklist.checklist_id,
-                "title": checklist.title,
-                "status": checklist.status,
-                "disclaimer": checklist.disclaimer,
-                "source_note": checklist.source_note,
-                "controls_applied": checklist_control_ids or [],
-            }
+            checklist.report_metadata(checklist_control_ids or [])
             if checklist
             else None
         ),
@@ -215,9 +208,10 @@ def main() -> None:
     selected_controls = []
     if checklist_mode == "Préparation comptable indicative" and accounting_checklist:
         st.warning(
-            f"{accounting_checklist.title} — brouillon non validé. "
+            f"{accounting_checklist.title} — statut : {accounting_checklist.status}. "
             f"{accounting_checklist.disclaimer}"
         )
+        st.caption(accounting_checklist.validation_policy)
         categories = list(
             dict.fromkeys(control.category for control in accounting_checklist.controls)
         )
@@ -248,7 +242,24 @@ def main() -> None:
             st.subheader("Rubriques indicatives sélectionnées")
             for control in selected_controls:
                 st.markdown(f"**{control.category}**")
+                st.caption(
+                    "Statut : piste indicative — aucune validation experte ni source "
+                    "juridique officielle associée."
+                    if control.validation_status == "indicative"
+                    else f"Statut : validé par {control.reviewed_by} le {control.reviewed_at}."
+                )
                 st.write(control.question)
+                st.caption(f"Base du contrôle : {control.basis}")
+                for source in control.legal_sources:
+                    st.write(
+                        f"Source déclarée : {source.authority} — {source.citation} "
+                        f"({source.jurisdiction}, version {source.version}, "
+                        f"statut {source.version_status})."
+                    )
+                    st.caption(
+                        f"Vérifiée par {source.verified_by} le {source.verified_at}; "
+                        f"fichier {source.source_file}, SHA-256 {source.source_sha256}."
+                    )
                 st.caption(
                     "Termes de repérage proposés : "
                     + ", ".join(control.expected_evidence)

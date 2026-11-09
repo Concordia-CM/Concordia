@@ -56,7 +56,8 @@ class DocumentExtractionTests(unittest.TestCase):
             def __init__(self) -> None:
                 pass
 
-            def answer(self, question: str) -> dict[str, object]:
+            def answer(self, question: str, **kwargs: object) -> dict[str, object]:
+                del kwargs
                 return {"question": question, "sources": []}
 
         result = AuditorAgent(FakeLegalAgent()).assess_check(
