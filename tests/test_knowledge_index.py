@@ -72,6 +72,35 @@ class KnowledgeBaseTests(unittest.TestCase):
         self.assertIn("p. 12-13", hits[0].citation)
         self.assertIn("Registre du commerce", hits[0].text)
 
+    def test_global_policy_scope_requires_explicit_global_metadata(self) -> None:
+        global_policy = {
+            "record_id": "global-policy",
+            "document_title": "Global Data Governance Policy Framework",
+            "source_file": "global-policy.pdf",
+            "domain": "Global policy",
+            "entity_type": "Policy_Document",
+            "metadata": {"geographic_scope": "global"},
+            "sections": [
+                {
+                    "section_id": "framework",
+                    "content": "Global policy framework for data governance.",
+                }
+            ],
+        }
+        (self.processed_dir / "global-policy.json").write_text(
+            json.dumps(global_policy),
+            encoding="utf-8",
+        )
+        self._build()
+
+        hits = self.knowledge_base.search(
+            "global policy framework data governance",
+            limit=5,
+            source_scope="global_policy",
+        )
+
+        self.assertEqual({hit.record_id for hit in hits}, {"global-policy"})
+
     def test_rccm_search_prioritizes_registration_hierarchy_over_mentions(self) -> None:
         commercial_law_path = (
             Path(__file__).resolve().parents[1]

@@ -46,6 +46,7 @@ def create_audit_report(
     checklist_control_ids: list[str] | None = None,
     use_llm: bool = False,
 ) -> dict[str, object]:
+    started_at = datetime.now(timezone.utc).isoformat()
     legal_agent = LegalPolicyAgent(knowledge_base)
     auditor = AuditorAgent(legal_agent)
     document_contents: dict[str, str] = {}
@@ -77,7 +78,7 @@ def create_audit_report(
         )
         for index, question in enumerate(questions, start=1)
     ]
-    now = datetime.now(timezone.utc).isoformat()
+    completed_at = datetime.now(timezone.utc).isoformat()
     llm_limitation = (
         "Lorsqu'une génération Ollama est lancée, le serveur configuré reçoit les "
         "questions, les noms de fichiers, les faits et éléments attendus ainsi que les "
@@ -90,8 +91,8 @@ def create_audit_report(
         "audit_id": str(uuid4()),
         "title": "Revue documentaire — dossier d'entreprise OHADA",
         "jurisdiction": "Cameroun",
-        "started_at": now,
-        "completed_at": now,
+        "started_at": started_at,
+        "completed_at": completed_at,
         "assessment": "human_review_required",
         "checklist": (
             checklist.report_metadata(checklist_control_ids or [])
@@ -109,6 +110,39 @@ def create_audit_report(
         ],
         "facts_reported": facts,
         "checks": checks,
+        "audit_trace": [
+            {
+                "step": "documents_extracted",
+                "timestamp": started_at,
+                "document_count": len(document_names),
+                "document_names": document_names,
+            },
+            {
+                "step": "controls_assessed",
+                "timestamp": completed_at,
+                "checks": [
+                    {
+                        "check_id": check.get("check_id", ""),
+                        "question": check.get("question", ""),
+                        "finding": check.get("finding", "human_review_required"),
+                        "policy_decision": (
+                            check["policy"].get("decision")
+                            if isinstance(check.get("policy"), dict)
+                            else None
+                        ),
+                        "sources": [
+                            {
+                                "record_id": source["record_id"],
+                                "section_id": source["section_id"],
+                                "citation": source["citation"],
+                            }
+                            for source in check.get("sources", [])
+                        ],
+                    }
+                    for check in checks
+                ],
+            },
+        ],
         "limitations": [
             "Les originaux et textes extraits restent en mémoire et ne sont pas ajoutés "
             "à l'index juridique.",

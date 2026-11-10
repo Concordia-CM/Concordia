@@ -53,6 +53,11 @@ class WebAuditWorkflowTests(unittest.TestCase):
         )
         self.assertIn("serveur configuré", report["limitations"][1])
         self.assertIn("texte intégral", report["limitations"][1])
+        self.assertEqual(report["audit_trace"][0]["step"], "documents_extracted")
+        self.assertEqual(
+            report["audit_trace"][1]["checks"][0]["question"],
+            "Le capital est-il indiqué ?",
+        )
         self.assertEqual(auditor.calls[0][1]["documents_received"], [
             "statuts.pdf",
             "statuts.pdf (2)",

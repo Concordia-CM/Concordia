@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from config.settings import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, Settings
 from src.agents.contracts import AgentInput, AgentResult, SourceReference, SourcedClaim
@@ -116,6 +117,27 @@ class LegalPolicyTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temporary_directory.cleanup()
+
+    def test_retrieval_query_does_not_replace_the_question(self) -> None:
+        question = "Comment traiter le dossier ?"
+        retrieval_query = "société immatriculée international standards"
+        comparative_query = "international policy standards"
+        with patch.object(
+            self.knowledge_base,
+            "search",
+            wraps=self.knowledge_base.search,
+        ) as search:
+            answer = LegalPolicyAgent(self.knowledge_base).answer(
+                question,
+                retrieval_query=retrieval_query,
+                additional_retrieval_queries=[comparative_query],
+            )
+
+        self.assertEqual(
+            [call.args[0] for call in search.call_args_list],
+            [retrieval_query, comparative_query],
+        )
+        self.assertEqual(answer["question"], question)
 
     def test_verified_citation_still_requires_human_legal_review(self) -> None:
         result = AgentResult(

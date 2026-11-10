@@ -17,25 +17,182 @@ from src.web.document_extraction import (
     extract_document,
 )
 from src.web.checklists import load_accounting_checklist
+from src.web.policy_gap_workflow import (
+    create_policy_gap_report,
+    policy_gap_fingerprint,
+)
+
+
+_POLICY_GAP_CATEGORIES = (
+    "Responsabilités et mandats",
+    "Politiques et stratégies",
+    "Normes et standards",
+    "Capacités technologiques",
+    "Lacunes législatives ou réglementaires",
+    "Coordination",
+    "Conflits entre objectifs",
+)
+
+
+def _render_policy_gap_analysis() -> None:
+    st.subheader("Analyse thématique des lacunes de politique")
+    st.caption(
+        "Décris un problème dans un domaine lié à la conformité OHADA-CEMAC. "
+        "L'analyse porte sur les lacunes du domaine ; la recherche compare les sources "
+        "régionales et nationales aux cadres ou standards mondiaux pertinents de l'index."
+    )
+    with st.form("policy-gap-form"):
+        domain = st.text_input(
+            "Domaine de politique",
+            key="policy-gap-domain",
+            placeholder="Ex. gouvernance des données, audit, conformité financière",
+            max_chars=120,
+        )
+        issue = st.text_area(
+            "Problème ou question à examiner",
+            key="policy-gap-issue",
+            placeholder="Décris la lacune de politique, de normes ou de coordination.",
+            max_chars=500,
+        )
+        categories = st.multiselect(
+            "Types de lacunes à examiner",
+            options=_POLICY_GAP_CATEGORIES,
+            default=list(_POLICY_GAP_CATEGORIES),
+            key="policy-gap-categories",
+        )
+        use_llm = st.checkbox(
+            "Rédiger une synthèse avec le modèle Ollama configuré",
+            value=False,
+            key="policy-gap-use-llm",
+            help=(
+                "La génération peut transmettre le domaine, la problématique et les "
+                "extraits retrouvés au serveur Ollama configuré."
+            ),
+        )
+        llm_consent = st.checkbox(
+            "J'autorise l'envoi de ces éléments et des extraits retrouvés au serveur "
+            "Ollama configuré.",
+            key="policy-gap-llm-consent",
+        )
+        submitted = st.form_submit_button("Rechercher les sources et analyser les lacunes")
+
+    if submitted:
+        if not domain.strip():
+            st.error("Indique un domaine de politique.")
+        elif not issue.strip():
+            st.error("Décris le problème ou la question à examiner.")
+        elif not categories:
+            st.error("Sélectionne au moins un type de lacune.")
+        elif use_llm and not llm_consent:
+            st.error("Confirme le transfert des données avant d'activer Ollama.")
+        else:
+            try:
+                report = create_policy_gap_report(
+                    KnowledgeBase(get_settings().database_path),
+                    domain,
+                    issue,
+                    categories,
+                    use_llm=use_llm,
+                )
+                st.session_state["policy_gap_report"] = report
+                st.session_state["policy_gap_fingerprint"] = policy_gap_fingerprint(
+                    domain, issue, categories, use_llm
+                )
+            except (OSError, RuntimeError, sqlite3.Error, ValueError) as error:
+                st.error(f"Impossible d'exécuter l'analyse documentaire : {error}")
+
+    report = st.session_state.get("policy_gap_report")
+    if not isinstance(report, dict):
+        return
+    current_fingerprint = policy_gap_fingerprint(
+        st.session_state.get("policy-gap-domain", ""),
+        st.session_state.get("policy-gap-issue", ""),
+        st.session_state.get("policy-gap-categories", []),
+        st.session_state.get("policy-gap-use-llm", False),
+    )
+    if st.session_state.get("policy_gap_fingerprint") != current_fingerprint:
+        st.warning("Les paramètres ont changé. Relance la recherche pour actualiser le rapport.")
+        return
+
+    st.subheader("Résultats — validation humaine requise")
+    st.write(report["answer"])
+    st.caption(
+        "La recherche couvre le domaine demandé et les termes de comparaison "
+        "internationaux. Vérifie la portée et l'autorité de chaque source dans ses "
+        "métadonnées avant de l'interpréter comme un comparateur mondial."
+    )
+    if report["global_comparator_count"]:
+        st.success(
+            f"{report['global_comparator_count']} source(s) à portée mondiale ou "
+            "internationale explicite retrouvée(s) pour comparaison."
+        )
+    else:
+        st.info(
+            "Aucun comparateur mondial ou international à portée explicite n'a été "
+            "retrouvé pour ce domaine dans l'index."
+        )
+    for group in report["retrieval_groups"]:
+        group_label = (
+            "Sources sur le domaine"
+            if group["purpose"] == "domain_context"
+            else "Résultats de la recherche comparative internationale"
+        )
+        st.markdown(f"**{group_label}**")
+        for source_group, source_label in (
+            (group["sources"], "Textes et décisions"),
+            (group["doctrine_sources"], "Éclairage doctrinal non normatif"),
+        ):
+            if source_group:
+                st.caption(source_label)
+            for source in source_group:
+                with st.expander(source["citation"]):
+                    st.caption(
+                        f"Fichier : {source['source_file']} · Domaine : "
+                        f"{source['domain']} · Type : {source['entity_type']}"
+                    )
+                    st.write(source["excerpt"] or source["text"])
+                    st.caption(
+                        f"Identifiants de provenance : {source['record_id']} / "
+                        f"{source['section_id']}"
+                    )
+                    if source.get("metadata"):
+                        st.json(source["metadata"])
+    st.markdown("**Trace vérifiable**")
+    st.json(report["audit_trace"])
+    st.caption("La trace porte sur les entrées, la recherche et les sources, pas sur une chaîne de pensée interne.")
+    if st.checkbox(
+        "Je choisis de télécharger une copie locale du rapport.",
+        key="authorize-policy-gap-download",
+    ):
+        st.download_button(
+            "Télécharger le rapport JSON",
+            data=json.dumps(report, ensure_ascii=False, indent=2),
+            file_name=f"concordia-policy-gap-{report['analysis_id']}.json",
+            mime="application/json",
+        )
 
 
 def main() -> None:
-    st.set_page_config(page_title="Concordia — Audit confidentiel", page_icon="⚖️")
-    st.title("Concordia — revue documentaire")
-    st.caption("Prototype local d'aide à l'audit documentaire OHADA — Cameroun.")
+    st.set_page_config(page_title="Concordia — Recherche et conformité", page_icon="⚖️")
+    st.title("Concordia — recherche juridique et analyse de conformité")
+    st.caption(
+        "Prototype multi-agent d'audit et de conformité OHADA-CEMAC, avec le Cameroun "
+        "comme contexte initial."
+    )
     st.warning(
         "Confidentialité : les fichiers et leur texte sont traités localement en mémoire "
         "et ne sont pas ajoutés au corpus juridique. Si tu actives l'analyse Ollama, "
-        "la question, les noms de fichiers, les faits et éléments attendus ainsi que les "
-        "extraits juridiques retrouvés peuvent être transmis au serveur configuré ; la "
-        "génération ne démarre que si des sources juridiques sont retrouvées. Le texte "
-        "intégral des fichiers déposés n'est pas transmis. Vérifie l'adresse Ollama avant "
-        "d'activer cette option. Choisis ci-dessous s'ils restent en mémoire jusqu'à la "
-        "fin de la session ou s'ils sont supprimés après la revue."
+        "la question, le domaine, la problématique, les noms de fichiers, les faits "
+        "et éléments attendus ainsi que les extraits "
+        "juridiques retrouvés peuvent être transmis au serveur configuré ; la génération "
+        "ne démarre que si des sources juridiques sont retrouvées. Le texte intégral des "
+        "fichiers déposés n'est pas transmis. Vérifie l'adresse Ollama avant d'activer "
+        "cette option. Choisis ci-dessous s'ils restent en mémoire jusqu'à la fin de la "
+        "session ou s'ils sont supprimés après la revue."
     )
     st.info(
-        "Ce prototype vérifie des éléments documentaires et retrouve des sources. "
-        "Il ne certifie pas la conformité et ne remplace pas un audit professionnel."
+        "Ce prototype retrouve des sources et assiste l'analyse de politique ou de "
+        "pièces. Il ne certifie pas la conformité et ne remplace pas un audit professionnel."
     )
 
     upload_version = int(st.session_state.get("upload_version", 0))
@@ -43,6 +200,19 @@ def main() -> None:
         st.session_state.clear()
         st.session_state["upload_version"] = upload_version + 1
         st.rerun()
+
+    analysis_mode = st.radio(
+        "Parcours de travail",
+        options=(
+            "Revue documentaire",
+            "Analyse des lacunes de politique par domaine",
+        ),
+        horizontal=True,
+        key="analysis-mode",
+    )
+    if analysis_mode == "Analyse des lacunes de politique par domaine":
+        _render_policy_gap_analysis()
+        return
 
     uploaded_files = st.file_uploader(
         "Dépose les documents du dossier (PDF ou DOCX)",
@@ -301,10 +471,21 @@ def main() -> None:
                         + ", ".join(check["missing_scenario_evidence"])
                     )
                 for source in check["sources"]:
-                    st.write(f"Source juridique : {source['citation']}")
+                    with st.expander(f"Source juridique : {source['citation']}"):
+                        st.write(source["excerpt"] or source["text"])
+                        st.caption(
+                            f"Provenance : {source['record_id']} / "
+                            f"{source['section_id']} · {source['source_file']}"
+                        )
                 for uncertainty in check["uncertainties"]:
                     st.caption(uncertainty)
 
+            st.markdown("**Trace vérifiable**")
+            st.json(report["audit_trace"])
+            st.caption(
+                "La trace présente les étapes exécutées et les références consultées, "
+                "pas une chaîne de pensée interne."
+            )
             st.caption(
                 "Le rapport n'est pas enregistré automatiquement. Le téléchargement "
                 "ci-dessous est proposé après confirmation et peut contenir les faits "
