@@ -42,6 +42,9 @@ class LegalPolicyAgent:
         source_scope: SourceScope = "legal_texts",
         include_doctrine: bool = False,
         analysis_context: str | None = None,
+        retrieval_query: str | None = None,
+        additional_retrieval_queries: list[str] | None = None,
+        additional_source_scope: SourceScope | None = None,
     ) -> dict[str, Any]:
         if not isinstance(question, str) or not question.strip():
             raise ValueError("La question ne peut pas être vide.")
@@ -49,12 +52,67 @@ class LegalPolicyAgent:
             not isinstance(analysis_context, str) or not analysis_context.strip()
         ):
             raise ValueError("analysis_context doit être omis ou non vide.")
-        hits = self.knowledge_base.search(
-            question,
-            limit=self.top_k,
-            retrieval_mode=retrieval_mode,
-            source_scope=source_scope,
+        if retrieval_query is not None and (
+            not isinstance(retrieval_query, str) or not retrieval_query.strip()
+        ):
+            raise ValueError("retrieval_query doit être omis ou non vide.")
+        if additional_retrieval_queries is not None and (
+            not isinstance(additional_retrieval_queries, list)
+            or len(additional_retrieval_queries) > 3
+            or not all(
+                isinstance(query, str) and query.strip()
+                for query in additional_retrieval_queries
+            )
+        ):
+            raise ValueError(
+                "additional_retrieval_queries doit contenir au plus trois textes non vides."
+            )
+        if additional_source_scope is not None and not additional_retrieval_queries:
+            raise ValueError(
+                "additional_source_scope nécessite au moins une requête supplémentaire."
+            )
+        search_queries = list(
+            dict.fromkeys(
+                [retrieval_query or question, *(additional_retrieval_queries or [])]
+            )
         )
+        hits = []
+        retrieval_results = []
+        seen_hits: set[tuple[str, str, str, str]] = set()
+        for query_index, search_query in enumerate(search_queries):
+            query_source_scope = (
+                source_scope
+                if query_index == 0 or additional_source_scope is None
+                else additional_source_scope
+            )
+            query_hits = self.knowledge_base.search(
+                search_query,
+                limit=self.top_k,
+                retrieval_mode=retrieval_mode,
+                source_scope=query_source_scope,
+            )
+            retrieval_results.append(
+                {
+                    "query": search_query,
+                    "source_scope": query_source_scope,
+                    "sources": [
+                        hit.to_dict() for hit in query_hits if not is_doctrine_hit(hit)
+                    ],
+                    "doctrine_sources": [
+                        hit.to_dict() for hit in query_hits if is_doctrine_hit(hit)
+                    ],
+                }
+            )
+            for hit in query_hits:
+                hit_key = (
+                    hit.record_id,
+                    hit.section_id,
+                    hit.source_field,
+                    hit.text,
+                )
+                if hit_key not in seen_hits:
+                    hits.append(hit)
+                    seen_hits.add(hit_key)
         doctrine_hits = [
             hit
             for hit in hits
@@ -70,11 +128,28 @@ class LegalPolicyAgent:
             legal_hits = []
         elif include_doctrine and source_scope != "all":
             doctrine_hits = self.knowledge_base.search(
-                question,
+                search_queries[0],
                 limit=self.top_k,
                 retrieval_mode=retrieval_mode,
                 source_scope="doctrine",
             )
+            if additional_retrieval_queries:
+                for search_query in search_queries[1:]:
+                    for hit in self.knowledge_base.search(
+                        search_query,
+                        limit=self.top_k,
+                        retrieval_mode=retrieval_mode,
+                        source_scope="doctrine",
+                    ):
+                        hit_key = (
+                            hit.record_id,
+                            hit.section_id,
+                            hit.source_field,
+                            hit.text,
+                        )
+                        if hit_key not in seen_hits:
+                            doctrine_hits.append(hit)
+                            seen_hits.add(hit_key)
         answer_modes = {
             "fts": "extractive_full_text_search",
             "vector": "extractive_vector_search",
@@ -194,9 +269,12 @@ class LegalPolicyAgent:
                 )
         return {
             "question": question,
+            "retrieval_queries": search_queries,
             "answer": answer,
             "answer_mode": mode,
             "source_scope": source_scope,
+            "retrieval_queries": search_queries,
+            "retrieval_results": retrieval_results,
             "sources": [hit.to_dict() for hit in legal_hits],
             "doctrine_sources": [hit.to_dict() for hit in doctrine_hits],
             "doctrine_notice": (

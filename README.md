@@ -1,143 +1,149 @@
 # Concordia
 
-**Prototype d'aide à la recherche juridique et à la revue de conformité dans l'espace OHADA-CEMAC, en commençant par le Cameroun.**
+**A prototype for legal research and compliance review in the OHADA-CEMAC region, starting with Cameroon.**
 
-Concordia est un prototype conçu pour le **AI for Good Sandbox Hackathon – United Arab Emirates**, organisé par l'ITU AI for Good Lab. Il explore comment une base de connaissances juridique et réglementaire contextualisée peut alimenter des agents IA spécialisés, coordonnés pour analyser des situations de conformité et rendre leurs conclusions vérifiables.
+Concordia is a prototype developed for the **AI for Good Sandbox Hackathon – United Arab Emirates**, organized by the ITU AI for Good Lab. It explores how a sourced legal and policy knowledge base can support domain-focused analysis and produce verifiable findings. Its legal scope remains OHADA-CEMAC, starting with Cameroon; policy-gap analysis focuses on domain-level issues rather than geographic comparisons or country-specific recommendations, and searches for relevant global examples in the knowledge base.
 
-> **Prototype de démonstration — pas un avis juridique.** La recherche documentaire, la réponse Ollama fondée sur les passages retrouvés, les scénarios d'audit CLI et une interface locale de revue PDF/DOCX sont disponibles. La coordination multi-agent complète, les référentiels juridiquement validés et l'évaluation experte restent à construire. Le prototype ne certifie pas la conformité et ne démontre pas une conformité à ITU-T Y.3172.
+> **Demonstration prototype — not legal advice.** Document retrieval, Ollama responses grounded in retrieved passages, CLI audit scenarios, and a local PDF/DOCX review interface are available. Full multi-agent coordination, legally validated audit frameworks, and expert evaluation remain to be developed. The prototype does not certify compliance and does not demonstrate compliance with ITU-T Y.3172.
 
-## En bref pour le jury
+## Project at a glance
 
-**Le problème.** Pour examiner une situation de conformité, il faut rapprocher les faits et pièces d'un dossier de textes provenant de juridictions et de domaines différents, sans perdre la provenance des règles ni masquer les incertitudes.
+**The problem.** A compliance review must connect case facts and documents to laws and regulations from different jurisdictions and domains, while preserving the sources of each rule and making uncertainty visible.
 
-**La proposition.** Concordia indexe des documents juridiques, retrouve des passages citables et peut demander au modèle Ollama configuré de rédiger une réponse limitée à ces passages. Dans un scénario d'audit, le système distingue les faits déclarés, les pièces attendues et les références juridiques ; la décision finale reste humaine.
+**The approach.** Concordia indexes legal documents, retrieves passages with citations, and can ask the configured Ollama model to draft an answer limited to those passages. In an audit scenario, the system distinguishes reported facts, expected documents, and legal references; a human remains responsible for the final decision.
 
-**Ce qui est démontrable aujourd'hui.**
+**What can be demonstrated today**
 
-- Recherche avec citations dans un index local, avec filtres séparant textes juridiques, jurisprudence CCJA et doctrine.
-- Réponses narratives Ollama à partir des sources retenues, ou mode extractif sans génération.
-- Scénario d'audit séquentiel en CLI et revue locale de documents PDF/DOCX.
-- Contrôle de provenance des citations et résultats marqués comme nécessitant une revue humaine.
+- Local, cited search with separate scopes for legal texts, CCJA case law, and doctrine.
+- Ollama-generated narrative answers based on retrieved sources, or extractive results without generation.
+- Sequential CLI audit scenarios and local PDF/DOCX document review.
+- An experimental Web workflow for classifying domain-level policy gaps and retrieving sources.
+- Citation provenance checks, with results marked as requiring human review.
 
-**Ce qui n'est pas encore démontré.** La coordination complète de plusieurs agents avec arbitrage, la pertinence juridique des réponses, la validité des pièces et la conformité à un référentiel d'audit doivent être évaluées par des spécialistes. Le benchmark de recherche est un jeu de départ, pas une validation juridique.
+**What has not yet been demonstrated.** Fully coordinated agents with arbitration, the legal relevance of generated answers, the validity of submitted documents, and compliance with an audit framework all require specialist evaluation. The retrieval benchmark is an initial test set, not legal validation.
 
-**Essai rapide** (après installation et préparation de l'index, décrites plus bas) :
+**Quick try** (after installation and index preparation, described below):
 
 ```bash
-# Poser une question sans génération
+# Ask a question without generation
 python -m src.app ask "Quelles dispositions concernent l'immatriculation au RCCM ?" --extractive
 
-# Ouvrir la revue documentaire locale
+# Open the local document review interface
 streamlit run src/web_app.py
 
-# Mesurer la recherche sur le jeu de référence
+# Evaluate retrieval on the reference set
 python -m src.app evaluate-search data/evaluation/legal_retrieval.json --top-k 5
 ```
 
-Le parcours Web n'envoie pas le texte intégral des fichiers à Ollama. Si une génération est activée et qu'une source est retrouvée, l'URL Ollama configurée peut recevoir la question, les noms de fichiers, les faits et éléments attendus ainsi que les extraits juridiques ; vérifier `CONCORDIA_OLLAMA_BASE_URL` avant l'essai.
+The Web workflow does not send the full text of uploaded files to Ollama. If generation is enabled and relevant sources are found, the configured Ollama server may receive the question, policy domain and issue, file names, reported facts, expected evidence, and retrieved legal excerpts. Check `CONCORDIA_OLLAMA_BASE_URL` before testing.
 
-**Pour approfondir :** [architecture et état d'avancement](#architecture-et-parcours-actuel) · [agents et limites](#agents-disponibles-et-orchestration-cible) · [installation et commandes](#installation) · [évaluation de la recherche](#mesurer-la-recherche-documentaire) · [données et provenance](#données-et-provenance).
+**Explore further:** [architecture and current status](#architecture-and-current-workflow) · [agents and limitations](#available-agents-and-target-orchestration) · [installation and commands](#installation) · [retrieval evaluation](#evaluate-document-retrieval) · [data and provenance](#data-and-provenance).
 
-## Contexte du hackathon
+## Hackathon context
 
-Le hackathon vise la création d'une infrastructure ouverte de connaissances contextualisées par pays et d'agents IA capables d'opérer dans des domaines concrets, en tenant compte des politiques, des lois et des responsabilités institutionnelles. La compétition encourage notamment :
+The hackathon aims to create an open infrastructure for knowledge and AI agents operating in practical domains while taking policies, laws, and institutional responsibilities into account. It encourages:
 
-- des bases de connaissances fondées sur des documents publics nationaux et correctement sourcées ;
-- des agents spécialisés, par exemple conseiller juridique ou politique, représentant institutionnel ou agent applicatif ;
-- des simulations de situations réalistes, avec des informations partielles et distribuées progressivement ;
-- la coordination entre agents ayant des rôles et mandats différents ;
-- la journalisation et des traces de justification vérifiables : références consultées, étapes, décisions et résultats des agents ;
-- l'analyse des lacunes de politiques, de réglementations, de standards et de coordination, éclairée par des exemples internationaux.
+- Knowledge bases grounded in properly sourced national public documents.
+- Specialized agents, such as legal or policy advisers, institutional representatives, and application agents.
+- Realistic simulations with partial information distributed over time.
+- Coordination between agents with distinct roles and mandates.
+- Audit logs and verifiable justification traces, including consulted references, steps, decisions, and agent outputs.
+- Analysis of policy, regulatory, standards, and coordination gaps informed by relevant international examples.
 
-Concordia applique cette approche à l'audit et à la conformité juridiques, fiscales et bancaires. Le point de départ est le Cameroun, avec les textes et institutions pertinents pour les espaces OHADA et CEMAC/COBAC. Le périmètre sera étendu au rythme de la constitution et de la validation des sources.
+Concordia applies this approach to legal, tax, and banking policy questions in the OHADA-CEMAC scope, beginning with Cameroon. Its current source base is primarily OHADA/CCJA and Cameroon-related material. The analysis focuses on domain-level gaps—such as unclear responsibilities, missing standards, technology limitations, legislative gaps, coordination failures, or conflicting objectives—and searches the index for relevant international policies, frameworks, and standards as comparators. Results remain constrained by the coverage of the indexed corpus; the geographic coverage of that corpus is not the intended focus of recommendations.
 
-La page officielle décrit les critères d'évaluation et les livrables attendus : [AI for Good Sandbox Hackathon – United Arab Emirates](https://aiforgood.itu.int/event/ai-for-good-sandbox-hackathon-united-arab-emirates/).
+The official page describes the evaluation criteria and expected deliverables: [AI for Good Sandbox Hackathon – United Arab Emirates](https://aiforgood.itu.int/event/ai-for-good-sandbox-hackathon-united-arab-emirates/).
 
-## Problème et proposition
+## Problem and proposal
 
-Les équipes d'audit et de conformité doivent confronter des documents de nature et de portée différentes : textes juridiques, réglementation sectorielle, règles institutionnelles, politiques et procédures. Une réponse utile doit non seulement repérer une règle pertinente, mais aussi expliquer son application, signaler les incertitudes et permettre à un humain de vérifier les sources.
+Audit and compliance teams must compare documents with different scopes and legal authority: statutes, sector regulations, institutional rules, policies, and procedures. A useful answer must do more than find a potentially relevant rule: it should explain its basis, flag uncertainty, and let a human verify the sources.
 
-Concordia vise à transformer ces sources en une base de connaissances exploitable par des agents spécialisés. Aujourd'hui, un utilisateur peut soumettre une question ou lancer un scénario séquentiel ; l'objectif à terme est que des agents coordonnés confrontent leurs analyses aux sources et produisent un rapport traçable soumis à validation humaine.
+Concordia aims to turn these sources into a knowledge base that specialized agents can use. Today, users can submit a question or run a sequential scenario. The longer-term goal is for coordinated agents to compare their analyses against sources and produce a traceable report for human review.
 
-Les résultats sont une aide à l'analyse et ne remplacent ni un avis juridique professionnel ni une décision d'une autorité compétente.
+Results are intended to support analysis; they do not replace professional legal advice or a decision by a competent authority.
 
-## Critères de réussite visés
+## Target success criteria
 
-La page du hackathon met notamment l'accent sur les aspects suivants. Le tableau distingue les éléments déjà observables des validations qui restent à faire :
+The hackathon highlights several areas. The table distinguishes what can currently be observed from what still needs validation:
 
-| Critère | État dans Concordia |
+| Evaluation criterion | Current status and remaining gap |
 |---|---|
-| Qualité et provenance du corpus | Index local avec références et filtres de sources ; benchmark de 12 questions disponible, mais non validé par un juriste. |
-| Qualité des agents | Agents juridiques, d'audit et institutionnel disponibles séparément ; pertinence des analyses à évaluer par des spécialistes. |
-| Analyse des lacunes et coordination | Policy de provenance et scénarios séquentiels disponibles ; analyse interinstitutionnelle, coordination autonome et arbitrage à construire. |
-| Auditabilité | Citations, rapports de scénario et journal JSONL disponibles en CLI ; le raisonnement interne du modèle n'est pas exposé. |
-| Alignement architectural | ITU-T Y.3172 et le cadre de préparation à l'IA de l'ITU servent de références de conception ; aucune conformité n'est revendiquée. |
+| Knowledge-base quality and provenance | A local searchable index carries document and section references. Coverage, currency, metadata completeness, and extraction accuracy still need expert review; the 12-question retrieval benchmark is not legal validation. |
+| Agent capability | Search, document-audit, and institutional components can return sourced results. Scenario-based tests and expert evaluation of relevance, correctness, mandates, and coordination remain necessary. |
+| Domain-level policy gaps and global examples | The experimental Web workflow structures gaps by responsibility, policy/strategy, standards, technology, legislation, coordination, and conflicting objectives, and searches the index using international comparison terms. Indexed sources are mainly OHADA/CCJA and Cameroon-related, so global comparisons remain limited by current corpus coverage. Do not treat retrieved local/regional law as a global comparator or produce country-specific recommendations. |
+| Auditability | The Web report records observable inputs, retrieval steps, policy outcomes, and source identifiers/citations. It does not expose or claim to expose an LLM chain of thought. |
+| ITU alignment | ITU-T Y.3172 and the ITU AI Readiness Framework are design references. A detailed, tested mapping to their components is still required; no standards-compliance claim is made. |
 
-## Architecture et parcours actuel
+## Architecture and current workflow
 
-Le schéma ci-dessous présente le parcours visé. L'index et les premières étapes de recherche et de revue sont implémentés ; l'orchestration multi-agent avec arbitrage est encore une cible.
+The diagram shows the intended workflow. The index and initial search and review stages are implemented; full multi-agent orchestration, arbitration, and a validated global policy corpus remain targets.
 
 ```text
-Textes, règlements, décisions, politiques et documents métier
+Statutes, regulations, decisions, policies, and business documents
                             |
                             v
-       Collecte, OCR, extraction et normalisation
+       Collection, OCR, extraction, and normalization
                             |
                             v
- Base de connaissances versionnée, sourcée et interrogeable
-          (index de recherche/RAG et relations juridiques)
+    Versioned, sourced, searchable knowledge base
+              (search/RAG index and relations)
                             |
                             v
-        Recherche et agents spécialisés
-        (orchestration complète : cible)
-                             |
-         Scénarios progressifs (CLI disponible)
-                             |
-                             v
- Rapport d'audit, références, lacunes et validation humaine
+             Search and specialized agents
+              (full orchestration: target)
+                            |
+          Progressive scenarios (CLI available)
                             |
                             v
-       Journal CLI et traces vérifiables
+ Audit report, references, gaps, and human review
+                            |
+                            v
+       CLI log and verifiable execution traces
 ```
 
-### Déposer un dossier confidentiel
+### Reviewing a confidential case file
 
-L'interface web de démonstration accepte des PDF (y compris les scans si Tesseract est disponible) et des fichiers DOCX. Elle est configurée pour écouter uniquement sur `127.0.0.1`, avec la télémétrie Streamlit désactivée. Les fichiers sont traités en mémoire, dans les limites documentées par l'interface ; leur texte n'est pas ajouté à l'index des sources juridiques. Si l'analyse Ollama, activée par défaut, trouve des sources et lance une génération, le serveur configuré peut recevoir la question, les noms de fichiers, les faits et éléments attendus ainsi que les extraits juridiques retrouvés — pas le texte intégral des documents déposés. Vérifier `CONCORDIA_OLLAMA_BASE_URL` avant usage. Aucun autre traitement cloud n'est configuré dans cette version.
+The demonstration web interface accepts PDF files (including scanned PDFs if Tesseract is available) and DOCX files. It listens on `127.0.0.1`, with Streamlit telemetry disabled. Files are processed in memory within the documented limits; their text is not added to the legal-source index. If Ollama analysis is enabled and a source is found, the configured server may receive the question, file names, reported facts, expected evidence, and retrieved legal excerpts—but not the full text of uploaded documents. Check `CONCORDIA_OLLAMA_BASE_URL` before use. No other cloud processing is configured.
 
 ```bash
 streamlit run src/web_app.py
 ```
 
-Le réviseur saisit les questions de contrôle et les éléments attendus ; Concordia vérifie leur présence par correspondance lexicale et retrouve les sources juridiques dans l'index existant. L'option « Rédiger une analyse avec le modèle Ollama configuré » est activée par défaut ; si des sources sont retrouvées et que la génération est lancée, le serveur configuré peut recevoir la question, les noms de fichiers, les faits et éléments attendus, ainsi que les extraits retrouvés, mais pas le texte intégral des documents déposés. Vérifier `CONCORDIA_OLLAMA_BASE_URL` avant de l'activer : l'adresse par défaut est locale, mais elle peut être configurée autrement. Cette première tranche ne détermine pas les obligations applicables, l'authenticité ou la validité des pièces ; aucun référentiel d'audit RCCM juridiquement validé n'est encore fourni. Les résultats restent en mémoire, ne sont pas enregistrés automatiquement et leur téléchargement exige une confirmation à chaque audit. L'interface demande à chaque audit si les originaux doivent rester en mémoire durant la session ou être supprimés ; un bouton permet aussi d'effacer le rapport et l'état de session. N'exposer cette interface sur un réseau ou un serveur distant qu'après avoir défini une politique de sécurité et de conservation adaptée : les fichiers envoyés à une instance distante transiteraient vers cette instance.
+The reviewer enters control questions and expected evidence. Concordia checks for their presence using lexical matching and retrieves legal sources from the existing index. The “Draft an analysis with the configured Ollama model” option is enabled by default; if sources are found and generation runs, the configured server may receive the question, file names, reported facts, expected evidence, and retrieved excerpts, but not the full text of uploaded documents. Check `CONCORDIA_OLLAMA_BASE_URL` before enabling it; the default address is local, but it can be changed. This initial implementation does not determine applicable obligations or establish the authenticity or validity of submitted documents. No legally validated RCCM audit framework is provided.
 
-Cette architecture reprend le parcours présenté pour le projet : **documents sources → base de connaissances utilisable par les modèles → application de démonstration**. L'objectif est de construire une base réellement interrogeable par les agents, et non de simplement stocker ou citer des documents.
+The **Policy gap analysis by domain** workflow structures a thematic query across responsibilities and mandates, policies and strategies, standards, technology, legislation, coordination, and conflicting objectives. It searches the existing index for domain sources and separately searches records explicitly tagged with global/international geographic scope for policy, framework, or standards comparators. Retrieved passages are shown with their indexed domain and file provenance; local/regional texts are not treated as global comparators, and the workflow does not generate country-specific recommendations. The current corpus contains no such globally tagged comparators, so international comparison results depend on future expansion of the indexed collection.
 
-| Étape cible | Rôle dans Concordia | État actuel |
+Reports remain in memory and are not saved automatically; downloading requires confirmation. The interface lets the reviewer choose whether uploaded originals remain in memory for the session or are cleared after review, and provides a control to clear the report and session state. Do not expose the interface on a network or remote server without an appropriate security and retention policy: files uploaded to a remote instance would be transmitted to that instance.
+
+This architecture follows the project path: **source documents → knowledge base usable by models → demonstration application**. The goal is to make the sources searchable by agents, not merely to store or cite documents.
+
+| Target stage | Role in Concordia | Current status |
 |---|---|---|
-| Sources (SRC) | Documents publics et documents métier autorisés, avec juridiction, date, provenance et licence | Des PDF juridiques sont présents localement ; le corpus doit être étendu et sa provenance documentée |
-| Collecte et prétraitement (C/PP) | Extraction PDF, OCR si nécessaire, normalisation et segmentation | Pipelines PDF et CCJA disponibles |
-| Base de connaissances | Index plein texte et vectoriel, métadonnées, références et relations CCJA | Index SQLite FTS5 ; la recherche juridique privilégie par défaut les textes et exclut la doctrine/manuels et les arrêts CCJA ; embeddings multilingues optionnels |
-| Modèles et agents (M) | Recherche fondée sur les sources, analyse documentaire et rôles spécialisés | Agent juridique, agent d'audit documentaire et agent institutionnel ; rédaction Ollama activée par défaut en CLI |
-| Politique et coordination | Contrôles de provenance, mandats, protocole d'échange et désaccords entre agents | Première Policy déterministe : vérification exacte des passages/citations indexés et revue humaine obligatoire ; orchestration multi-agent et arbitrage à construire |
-| Scénarios et application | Événements publiés progressivement et restitution | Scénarios JSON via CLI et première interface web locale avec dépôt confidentiel de PDF/DOCX |
-| Audit et supervision | Sources citées, résultats observables, limites, validation humaine et journal | Rapport JSON/Markdown et journal JSONL local ; revue humaine requise |
+| Sources (SRC) | Authorized public and business documents with jurisdiction, date, provenance, and license | Legal PDFs are available locally; the corpus needs to be expanded and its provenance documented. |
+| Collection and preprocessing (C/PP) | PDF extraction, OCR where needed, normalization, and chunking | PDF and CCJA pipelines are available. |
+| Knowledge base | Full-text and vector indexes, metadata, references, and CCJA relations | SQLite FTS5 index; legal-text search excludes doctrine/manuals and CCJA decisions by default; multilingual embeddings are optional. |
+| Models and agents (M) | Source-grounded search, document analysis, and specialized roles | Legal, document-audit, and institutional agents; Ollama generation is enabled by default in the CLI. |
+| Policy and coordination | Provenance controls, mandates, exchange protocol, and agent disagreements | Initial deterministic Policy verifies that passages/citations exist in the index and requires human review; multi-agent orchestration and arbitration remain to be built. |
+| Domain-level gap analysis | Identify unclear roles, missing standards, technology/legal gaps, coordination failures, and competing objectives; compare with global policy examples | The Web workflow structures these gap categories and searches the current index. Global source coverage and metadata are not yet sufficient for validated comparisons. |
+| Scenarios and application | Progressive events and results | JSON scenarios via CLI and an initial local web interface for confidential PDF/DOCX uploads. |
+| Audit and oversight | Cited sources, observable results, limitations, human review, and logging | JSON/Markdown reports and a local JSONL log; human review is required. |
 
-### Alignement avec ITU-T Y.3172
+### Alignment with ITU-T Y.3172
 
-Concordia prend **ITU-T Y.3172** (*Architectural overview of machine learning in future networks including IMT-2020*) comme référence d'architecture pour structurer le cycle allant des sources et du prétraitement aux modèles, à leur utilisation et au suivi. La correspondance détaillée entre les composants de la norme et l'implémentation Concordia reste à préciser et à valider au fur et à mesure du développement. Cet alignement est un objectif de conception, pas une conformité déjà démontrée.
+Concordia uses **ITU-T Y.3172** (*Architectural overview of machine learning in future networks including IMT-2020*) as an architectural reference for structuring the lifecycle from sources and preprocessing through models, deployment, and monitoring. The detailed mapping between the recommendation and the implementation remains to be specified and validated. This is a design goal, not a demonstrated compliance claim.
 
-Le projet entend également prendre en compte les perspectives du [ITU AI Readiness Framework](https://www.itu.int/dms_pub/itu-t/opb/ai4g/T-AI4G-AI4GOOD-2025-6-PDF-E.pdf), notamment l'ouverture et la gouvernance des données, l'adaptation au contexte local, l'inclusion, la supervision humaine et les contraintes d'infrastructure.
+The project also intends to consider the [ITU AI Readiness Framework](https://www.itu.int/dms_pub/itu-t/opb/ai4g/T-AI4G-AI4GOOD-2025-6-PDF-E.pdf), including data openness and governance, local adaptation, inclusion, human oversight, and infrastructure constraints.
 
-## Agents disponibles et orchestration cible
+## Available agents and target orchestration
 
-Les agents sont des composants documentaires, pas encore une équipe autonome coordonnée de bout en bout :
+The agents are document-analysis components, not yet an autonomous team coordinated end to end:
 
-- **Agent juridique** : recherche des passages et références ; la Policy vérifie leur provenance, pas leur interprétation juridique.
-- **Agent d'audit** : compare les éléments attendus aux pièces déclarées et transmet le contexte d'analyse ; il ne prononce pas une conformité.
-- **Agent institutionnel** : fournit une perspective à partir d'une institution, d'un mandat et d'une juridiction explicitement donnés via `route --intent institutional_analysis`. Il ne représente aucune position officielle.
-- **Orchestrateur actuel** : traite séquentiellement les événements d'un scénario et assemble rapports et journaux. La délégation autonome entre agents, la résolution des désaccords et l'arbitrage sont à construire.
+- **Legal agent:** retrieves passages and references. Policy checks their provenance, not their legal interpretation.
+- **Audit agent:** compares expected evidence with declared documents and passes analysis context; it does not determine compliance.
+- **Institutional agent:** provides a perspective based on an explicitly supplied institution, mandate, and jurisdiction via `route --intent institutional_analysis`. It does not represent an official position.
+- **Current orchestrator:** processes scenario events sequentially and assembles reports and logs. Autonomous delegation, disagreement resolution, and arbitration remain to be built.
 
-L'analyse institutionnelle peut être lancée directement :
+Institutional analysis can be run directly:
 
 ```bash
 python -m src.app route "Examiner les obligations de déclaration" \
@@ -147,7 +153,7 @@ python -m src.app route "Examiner les obligations de déclaration" \
   --jurisdiction "Cameroun"
 ```
 
-Elle peut aussi être activée dans un scénario d'audit en ajoutant une configuration facultative au niveau racine :
+It can also be enabled in an audit scenario by adding an optional root-level configuration:
 
 ```json
 {
@@ -160,103 +166,106 @@ Elle peut aussi être activée dans un scénario d'audit en ajoutant une configu
 }
 ```
 
-L'orchestrateur applique cette perspective à chaque contrôle, puis ajoute le résultat, les références et la décision Policy au rapport et au journal d'audit. `generate` reste désactivé par défaut ; l'activer nécessite un serveur Ollama configuré. L'analyse interroge actuellement le même index documentaire général que l'agent juridique : aucun corpus institutionnel dédié n'est encore fourni.
+The orchestrator applies this perspective to each control, then adds the result, references, and Policy decision to the report and audit log. `generate` is disabled by default; enabling it requires a configured Ollama server. Institutional analysis currently searches the same general document index as the legal agent; there is no dedicated institutional corpus yet.
 
-La page du hackathon demande une journalisation d'audit et des traces de raisonnement. Le prototype journalise les événements, les contrôles et les références récupérées ; il ne prétend pas exposer un raisonnement interne de modèle. La traçabilité repose sur des éléments vérifiables : sources récupérées, citations, entrées et sorties d'agents, étapes du scénario, horodatage et décisions de validation humaine.
+The hackathon calls for audit logs and reasoning traces. The prototype records observable events, checks, and retrieved references; it does not expose or claim to expose a model's internal chain of thought. Traceability relies on verifiable artifacts: source citations and identifiers, agent inputs and outputs, scenario steps, timestamps, Policy outcomes, and human-review decisions.
 
-## Parcours de démonstration et limites
+## Demonstration workflow and limitations
 
-Le scénario CLI disponible transmet un dossier puis une pièce complémentaire. Il permet de montrer le traitement séquentiel d'informations incomplètes ; il ne démontre pas encore une coordination autonome multi-agent. Un rapport utile doit distinguer :
+The available CLI scenario provides an initial case file, followed by a supplementary document. It demonstrates sequential processing of incomplete information; it does not yet demonstrate autonomous multi-agent coordination. A useful report should distinguish:
 
-1. les faits et pièces reçus ;
-2. les règles et documents retrouvés, avec leurs références ;
-3. les analyses produites par chaque rôle ;
-4. les convergences, désaccords, lacunes et points non vérifiés ;
-5. les recommandations ou actions proposées, avec les limites et la validation humaine requise.
+1. Facts and documents received.
+2. Retrieved rules and documents, with references.
+3. Analyses produced by each role.
+4. Agreements, disagreements, gaps, and unverified points.
+5. Recommendations or proposed actions, with limitations and required human review.
 
-Les scénarios et résultats devront être évalués sur des cas représentatifs, sans présenter les sorties du prototype comme des décisions juridiques définitives.
+Scenarios and results must be evaluated on representative cases. Prototype outputs must not be presented as definitive legal decisions.
 
-### Brouillon de préparation comptable
+### Accounting-readiness draft
 
-L'interface web propose un catalogue indicatif de préparation pour une revue comptable, organisé par rubriques de pièces et contrôles documentaires. Le modèle est enregistré dans [`data/checklists/accounting_readiness_draft.json`](data/checklists/accounting_readiness_draft.json) : ses huit contrôles portent chacun leur statut, leur base déclarée et leurs références juridiques. À ce jour, ils sont tous `indicative` et aucune référence officielle n'est associée. Le modèle s'inspire des catégories du texte commercial partagé, mais n'en reprend ni les seuils ni les affirmations juridiques. Il n'est ni exhaustif ni validé juridiquement : les rubriques sélectionnées doivent être adaptées au mandat et vérifiées par un professionnel. Les recherches lexicales de pièces ne déterminent pas leur authenticité, suffisance ou conformité.
+The web interface offers an indicative accounting-review preparation catalog, organized by document categories and documentary controls. The model is stored in [`data/checklists/accounting_readiness_draft.json`](data/checklists/accounting_readiness_draft.json). Each of its eight controls has a status, stated basis, and legal-reference fields. All controls are currently `indicative`, and no official legal sources are associated with them. The draft is inspired by categories in a shared business document, but does not reproduce its thresholds or legal claims. It is not exhaustive or legally validated; selected categories must be adapted to the engagement and reviewed by a professional. Lexical document checks do not determine authenticity, sufficiency, or compliance.
 
-Un futur contrôle `expert_validated` doit consigner le réviseur, la date de revue et, pour chaque référence, l'autorité, la citation, la juridiction, une URL, l'identifiant et la section du corpus, le fichier source, son empreinte SHA-256, la version/statut et la personne/date de vérification de son caractère officiel. Le chargeur refuse les entrées incomplètes ou incohérentes et le rapport conserve les métadonnées des contrôles utilisés. Ces champs apportent une piste d'audit, mais le logiciel ne peut pas prouver que les déclarations de revue, l'URL ou le statut juridique sont véridiques : une validation humaine reste indispensable.
+A future `expert_validated` control must record the reviewer and review date, and for each reference the authority, citation, jurisdiction, URL, corpus record and section IDs, source file, SHA-256 hash, version/status, and who verified its official status and when. The loader rejects incomplete or inconsistent entries, and the report retains metadata for the controls used. These fields provide an audit trail, but the software cannot prove that review statements, URLs, or legal-status claims are true; human validation remains essential.
 
-## État des lieux du dépôt
+## Repository status
 
-### Fonctionnalités disponibles
+### Available functionality
 
-- [`src/ingestion/ingest.py`](src/ingestion/ingest.py) : extraction et segmentation de PDF juridiques ; les sorties JSON sont nommées à partir de l'empreinte du fichier. À la relance, un PDF inchangé dont la sortie est valide est ignoré ; un PDF modifié ou une sortie absente ou invalide entraîne un nouveau traitement.
-- [`src/ingestion/ingest_ccja.py`](src/ingestion/ingest_ccja.py) : conversion d'un corpus CCJA CSV en documents JSONL et en segments de recherche ; rattachement facultatif de relations déjà présentes dans des fichiers CSV du graphe.
-- [`src/knowledge/index.py`](src/knowledge/index.py) : construction d'un index local SQLite FTS5, recherche plein texte en français, citations par article/page et chargement des relations CCJA.
-- [`src/agents/legal_policy_agent.py`](src/agents/legal_policy_agent.py), [`src/agents/auditor_agent.py`](src/agents/auditor_agent.py) et [`src/agents/institutional_agent.py`](src/agents/institutional_agent.py) : recherche sourcée, identification des pièces manquantes et perspective institutionnelle configurée, sans conclusion automatique de conformité.
-- [`src/orchestrator/coordinator.py`](src/orchestrator/coordinator.py) : traitement séquentiel des événements et production d'un rapport ainsi que d'un journal d'audit JSONL.
-- [`src/app.py`](src/app.py) : commandes CLI pour créer l'index, poser une question, lancer un audit et consulter des relations CCJA.
-- [`src/web_app.py`](src/web_app.py) et [`src/web/audit_workflow.py`](src/web/audit_workflow.py) : interface locale et workflow de revue ; les pièces sont extraites en mémoire et ne sont pas indexées dans le corpus juridique. Le texte intégral des pièces n'est pas envoyé à Ollama, mais les questions, faits, éléments attendus, noms de fichiers et extraits juridiques peuvent l'être si la génération est lancée.
-- [`requirements.txt`](requirements.txt) : dépendances du projet.
+- [`src/ingestion/ingest.py`](src/ingestion/ingest.py): extracts and chunks legal PDFs. Output JSON files are named using the source file hash. On rerun, an unchanged PDF with a valid output is skipped; a modified PDF or missing/invalid output is processed again.
+- [`src/ingestion/ingest_ccja.py`](src/ingestion/ingest_ccja.py): converts a CCJA CSV corpus into JSONL documents and search chunks; can optionally attach relations already present in graph CSV files.
+- [`src/knowledge/index.py`](src/knowledge/index.py): builds a local SQLite FTS5 index, supports French full-text search and article/page citations, and loads CCJA relations.
+- [`src/agents/legal_policy_agent.py`](src/agents/legal_policy_agent.py), [`src/agents/auditor_agent.py`](src/agents/auditor_agent.py), and [`src/agents/institutional_agent.py`](src/agents/institutional_agent.py): provide sourced search, identification of missing documents, and configured institutional perspectives without automatically determining compliance.
+- [`src/orchestrator/coordinator.py`](src/orchestrator/coordinator.py): processes scenario events sequentially and produces a report and JSONL audit log.
+- [`src/app.py`](src/app.py): CLI commands to build the index, ask a question, run an audit, and inspect CCJA relations.
+- [`src/web_app.py`](src/web_app.py), [`src/web/audit_workflow.py`](src/web/audit_workflow.py), and [`src/web/policy_gap_workflow.py`](src/web/policy_gap_workflow.py): local document-review and experimental domain-level policy-gap workflows. Uploaded files are extracted in memory and are not indexed in the legal corpus. If generation runs, the configured Ollama server may receive questions, analysis context, file names, facts, expected evidence, and retrieved excerpts—but not the full text of uploaded files.
+- [`requirements.txt`](requirements.txt): project dependencies.
 
-### À construire ou à valider
+### To build or validate
 
-- évaluation comparative FTS/vectoriel/hybride sur un benchmark plus large relu par des spécialistes ;
-- évaluation experte des synthèses Ollama/RAG et qualité juridique des citations ;
-- ingestion complète et documentée des sources nationales et régionales pertinentes ;
-- corpus réglementaire institutionnel dédié, mandats documentés, arbitrage et protocole d'échange multi-acteurs ;
-- amélioration de l'interface et de la supervision humaine interactive ;
-- validation juridique et métier du rapport sur des scénarios réalistes ;
-- tests de qualité de recherche, de conformité des réponses, de robustesse et de performance ;
-- coordination multi-agent, désaccords et arbitrage, au-delà de l'exécution séquentielle actuelle.
+- Compare FTS, vector, and hybrid retrieval on a larger benchmark reviewed by specialists.
+- Obtain expert evaluation of Ollama/RAG summaries and citation quality.
+- Ingest and document a more complete set of relevant national and regional sources.
+- Add well-sourced, expert-validated global policy examples with provenance and scope metadata.
+- Evaluate domain-level gap analyses and global comparisons against expert-reviewed cases.
+- Build a dedicated institutional regulatory corpus, document mandates, and implement multi-party exchange and arbitration.
+- Add and validate globally relevant policy sources with jurisdiction/scope, publisher, date/version, URL, license, and provenance metadata; evaluate cross-domain comparisons against expert-reviewed examples.
+- Improve the interface and interactive human oversight.
+- Validate the report against realistic legal and business scenarios.
+- Test retrieval quality, response provenance, robustness, and performance.
+- Implement multi-agent coordination, disagreement handling, and arbitration beyond the current sequential workflow.
 
-Le répertoire `src/policy/` contient maintenant une première Policy de provenance dans `src/policy/legal_policy.py`. Elle bloque une référence absente ou falsifiée et requiert une revue humaine pour les autres sorties ; elle ne vérifie ni la portée juridique ni la priorité des normes. Les contrats partagés et un client Ollama optionnel sont disponibles ; l'agent institutionnel est routable et peut être inclus dans un scénario d'audit, mais interroge le même index général faute de corpus dédié. La coordination multi-agent avec arbitrage reste à construire.
+The `src/policy/` directory contains an initial provenance Policy in `src/policy/legal_policy.py`. It blocks missing or falsified references and requires human review for other outputs; it does not verify legal scope or hierarchy. Shared contracts and an optional Ollama client are available. The institutional agent can be routed directly or included in an audit scenario, but it searches the same general index because no dedicated corpus exists. Multi-agent coordination with arbitration remains to be built.
 
-### Configuration et Ollama
+### Configuration and Ollama
 
-La configuration se lit depuis les variables d'environnement :
+Configuration is read from environment variables:
 
-| Variable | Défaut | Usage |
+| Variable | Default | Purpose |
 |---|---|---|
-| `CONCORDIA_DATABASE_PATH` | `data/knowledge_base/concordia.sqlite3` | Chemin de la base locale |
-| `CONCORDIA_EMBEDDING_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Modèle d'embeddings |
-| `CONCORDIA_OLLAMA_BASE_URL` | `http://localhost:11434` | Adresse du serveur Ollama local |
-| `CONCORDIA_OLLAMA_MODEL` | `qwen2.5:3b` | Modèle génératif Ollama local ; définir la variable vide pour le désactiver |
-| `CONCORDIA_LLM_TIMEOUT_SECONDS` | `120` | Timeout prévu pour les appels génératifs |
+| `CONCORDIA_DATABASE_PATH` | `data/knowledge_base/concordia.sqlite3` | Local database path |
+| `CONCORDIA_EMBEDDING_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | Embedding model |
+| `CONCORDIA_OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server address |
+| `CONCORDIA_OLLAMA_MODEL` | `qwen2.5:3b` | Local Ollama generation model; set the variable to an empty value to disable it |
+| `CONCORDIA_LLM_TIMEOUT_SECONDS` | `120` | Timeout for generation requests |
 
-Le modèle par défaut est un choix de démarrage léger, pas une recommandation pour prendre des décisions juridiques. Les commandes `ask`, `route` et `audit` utilisent Ollama par défaut pour rédiger une réponse narrative à partir des passages retrouvés ; `--extractive` affiche uniquement les extraits. Ollama ne reçoit pas de contexte juridique en l'absence de passage retrouvé. Les sorties générées sont rattachées aux sources fournies et vérifiées par Policy, mais ce contrôle vérifie la provenance, pas le raisonnement juridique ; une revue humaine reste obligatoire.
+The default model is a lightweight starting choice, not a recommendation for legal decision-making. The `ask`, `route`, and `audit` commands use Ollama by default to draft narrative answers from retrieved passages; `--extractive` displays only excerpts. Ollama receives no legal context when no passage is retrieved. Generated claims are linked to supplied sources and checked by Policy, but this checks provenance, not legal reasoning; human review remains required.
 
-Installer et lancer Ollama, puis télécharger le modèle :
+Install and start Ollama, then download the model:
 
 ```bash
 ollama pull qwen2.5:3b
 ```
 
-La synthèse est activée par défaut. Pour demander explicitement une réponse extractive sans appel Ollama :
+Generation is enabled by default. To explicitly request an extractive answer without calling Ollama:
 
 ```bash
 python -m src.app ask "Quel texte porte le Code électoral camerounais ?" --extractive
 python -m src.app route "Quels articles parlent de l'immatriculation ?" --extractive
 ```
 
-## Données et provenance
+## Data and provenance
 
-Les scripts d'ingestion utilisent les chemins suivants par défaut :
+The ingestion scripts use these default paths:
 
-- PDF juridiques : `data/raw_legal_docs/` ;
-- corpus CCJA : `data/knowledge_graphs/ccja_jurisprudence/ccja_corpus/full_dataset.csv` ;
-- relations CCJA : `data/knowledge_graphs/ccja_jurisprudence/ccja_corpus/ohada_graph/` ;
-- documents et segments JSON/JSONL : `02_PROCESSED_JSON/`.
+- Legal PDFs: `data/raw_legal_docs/`
+- CCJA corpus: `data/knowledge_graphs/ccja_jurisprudence/ccja_corpus/full_dataset.csv`
+- CCJA relations: `data/knowledge_graphs/ccja_jurisprudence/ccja_corpus/ohada_graph/`
+- Processed JSON/JSONL documents and chunks: `02_PROCESSED_JSON/`
 
-Le corpus CCJA est traité séparément des PDF. L'indexeur inclut les décisions, leurs segments et les relations disponibles dans les JSONL. La construction produit un index SQLite local avec recherche plein texte et graphe documentaire ; les embeddings sont une étape optionnelle distincte. Il ne s'agit pas d'une base distribuée.
+The CCJA corpus is processed separately from PDFs. The indexer includes decisions, their chunks, and relations available in JSONL. Building the index creates a local SQLite full-text index and document graph; embeddings are a separate optional step. This is not a distributed database.
 
-Pour chaque jeu de données publié ou partagé, documenter au minimum l'organisation source, l'URL ou la référence, la juridiction, la date/version, la licence et les transformations appliquées. Vérifier les droits de réutilisation et de redistribution avant de publier des documents ou des résultats dérivés. Les sorties produites localement ne sont pas nécessairement incluses dans le dépôt Git.
+For each dataset published or shared, document at least the source organization, URL or reference, jurisdiction, geographic scope, date/version, license, and transformations applied. Global-policy records must declare a `geographic_scope`, `jurisdiction`, or `scope` metadata value of `global`, `international`, `worldwide`, or `multilateral` to be included in the comparative search. Check reuse and redistribution rights before publishing documents or derived results. Locally generated outputs are not necessarily included in Git.
 
 ## Installation
 
-Prérequis : Python 3.10 ou plus récent. Pour l'OCR des PDF numérisés, installer également Tesseract et les données de langue française sur Ubuntu :
+Requirements: Python 3.10 or later. To OCR scanned PDFs on Ubuntu, also install Tesseract and the French language data:
 
 ```bash
 sudo apt install tesseract-ocr tesseract-ocr-fra
 ```
 
-Créer un environnement virtuel et installer les dépendances :
+Create a virtual environment and install dependencies:
 
 ```bash
 python3 -m venv .venv
@@ -265,50 +274,50 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Utilisation
+## Usage
 
-Lancer le pipeline PDF depuis la racine du dépôt :
+Run the PDF ingestion pipeline from the repository root:
 
 ```bash
 python -m src.ingestion.ingest
 ```
 
-Le pipeline parcourt `data/raw_legal_docs/` et écrit un fichier JSON par PDF traité dans `02_PROCESSED_JSON/`. Les documents déjà traités et inchangés sont sautés à la relance.
+The pipeline scans `data/raw_legal_docs/` and writes one JSON file per processed PDF to `02_PROCESSED_JSON/`. Unchanged documents that have already been processed are skipped on subsequent runs.
 
-Importer le corpus CCJA avec les chemins par défaut :
+Import the CCJA corpus using the default paths:
 
 ```bash
 python -m src.ingestion.ingest_ccja
 ```
 
-Les fichiers produits par défaut sont :
+The default output files are:
 
-- `02_PROCESSED_JSON/ccja-decisions.jsonl` : une décision normalisée par ligne ;
-- `02_PROCESSED_JSON/ccja-search-chunks.jsonl` : segments de texte associés à leur décision et à leur champ source.
+- `02_PROCESSED_JSON/ccja-decisions.jsonl`: one normalized decision per line.
+- `02_PROCESSED_JSON/ccja-search-chunks.jsonl`: text chunks associated with a decision and source field.
 
-Les paramètres `--csv`, `--graph-dir`, `--output`, `--chunks-output`, `--chunk-size` et `--chunk-overlap` permettent d'adapter les chemins et le découpage. Voir l'aide de la commande :
+Use `--csv`, `--graph-dir`, `--output`, `--chunks-output`, `--chunk-size`, and `--chunk-overlap` to customize paths and chunking. See the command help:
 
 ```bash
 python -m src.ingestion.ingest_ccja --help
 ```
 
-### Construire ou actualiser la base de connaissances
+### Build or update the knowledge base
 
-Depuis la racine du dépôt, après avoir produit les documents JSON et JSONL :
+From the repository root, after producing JSON and JSONL documents:
 
 ```bash
 python -m src.app build-index
 ```
 
-Cette commande indexe les JSON dans `02_PROCESSED_JSON/`, ainsi que les décisions et segments CCJA s'ils sont présents. L'index SQLite est créé localement dans `data/knowledge_base/concordia.sqlite3` et n'est pas ajouté à Git. Chaque reconstruction remplace son contenu avec les fichiers présents à cet instant.
+This indexes JSON files in `02_PROCESSED_JSON/` and CCJA decisions and chunks, if present. The SQLite index is created locally at `data/knowledge_base/concordia.sqlite3` and is not committed to Git. Each rebuild replaces the index contents with the files present at that time.
 
-### Poser une question documentaire
+### Ask a documentary question
 
 ```bash
 python -m src.app ask "Quelles dispositions concernent l'immatriculation au RCCM ?"
 ```
 
-La commande `ask` limite par défaut les résultats aux textes juridiques : les décisions CCJA et les documents classés comme doctrine/manuels ne sont pas mélangés à ces résultats. La recherche plein texte classe les candidats selon la couverture des termes significatifs et leur proximité ; si les termes centraux ne concordent pas, elle s'abstient au lieu de présenter des passages trouvés sur de simples mots génériques. Pour les questions qui exigent une correspondance sémantique ou des formulations différentes, construire l'index vectoriel puis choisir le mode hybride. Pour une recherche de jurisprudence ou de doctrine, utiliser `--source-scope case_law` ou `--source-scope doctrine`. L'option `--include-doctrine` conserve les textes juridiques dans leur rubrique et ajoute séparément un éclairage doctrinal ; dans les audits, cet éclairage apparaît aussi distinctement comme piste à examiner. La doctrine n'est jamais présentée comme preuve d'une obligation et n'alimente pas les affirmations juridiques générées par Ollama. `--source-scope all` reste disponible pour consulter explicitement tous les corpus. Ces filtres s'appliquent aussi aux modes vectoriel et hybride et ne nécessitent pas de reconstruire l'index existant.
+The `ask` command searches legal texts by default; CCJA decisions and documents classified as doctrine/manuals are not mixed into those results. Full-text search ranks candidates by significant-term coverage and proximity. If central terms do not match, it abstains rather than returning passages matching only generic words. For questions requiring semantic matching or different wording, build the vector index and select hybrid mode. Use `--source-scope case_law` or `--source-scope doctrine` to search case law or doctrine. `--include-doctrine` keeps legal texts in their own section and adds doctrinal material separately as non-normative context; audits also show it separately as a research lead. Doctrine is never presented as proof of a legal obligation and is not used to generate legal claims with Ollama. `--source-scope all` is available to search all corpora explicitly. These filters also apply to vector and hybrid modes and do not require rebuilding the index.
 
 ```bash
 python -m src.app ask "Immatriculation au RCCM" --source-scope case_law
@@ -317,11 +326,11 @@ python -m src.app ask "Immatriculation au RCCM" --include-doctrine
 python -m src.app ask "Immatriculation au RCCM" --source-scope all
 ```
 
-Par défaut, Ollama rédige une réponse en français à partir des seuls passages retenus par la recherche ; Concordia restitue les citations correspondantes. Avec `--extractive`, la commande n'appelle pas Ollama et affiche les extraits. Si aucun passage pertinent n'est retenu, aucune génération n'est lancée. Le contrôle Policy vérifie la présence des sources dans l'index, pas que le raisonnement est juridiquement exact ; la revue humaine reste nécessaire.
+By default, Ollama drafts a French answer based only on passages selected by search; Concordia returns the corresponding citations. With `--extractive`, the command does not call Ollama and displays the excerpts. If no relevant passage is selected, generation is not run. Policy checks that sources exist in the index, not that the reasoning is legally correct; human review remains necessary.
 
-### Router une demande
+### Route a request
 
-La commande `route` reconnaît de façon déterministe les deux parcours disponibles : recherche juridique et audit documentaire. Elle n'utilise pas de modèle d'intention ; une demande ambiguë ou non reconnue est refusée plutôt que routée par défaut. Pour lever l'ambiguïté, préciser `--intent`. Un audit nécessite toujours un scénario JSON :
+The `route` command deterministically recognizes two available workflows: legal search and document audit. It does not use a model to infer intent; ambiguous or unrecognized requests are rejected rather than routed by default. Use `--intent` to specify the workflow. An audit always requires a JSON scenario:
 
 ```bash
 python -m src.app route "Quels articles parlent de l'immatriculation ?"
@@ -329,28 +338,28 @@ python -m src.app route "Lancer un audit de conformité" --scenario data/scenari
 python -m src.app route "Auditer ce dossier et rechercher les articles applicables" --intent document_audit --scenario data/scenarios/cameroon_company_document_review.json
 ```
 
-Le routeur couvre uniquement ces deux parcours ; les analyses institutionnelles, les modèles génératifs et les décisions automatiques ne sont pas pris en charge.
+Automatic intent detection supports only these two workflows. Institutional analysis requires an explicit `--intent institutional_analysis`; generation is an agent option, not a separately routed workflow, and the CLI does not make automated legal decisions.
 
-### Mesurer la recherche documentaire
+### Evaluate document retrieval
 
-Le benchmark `data/evaluation/legal_retrieval.json` contient douze questions à visée de revue documentaire couvrant notamment le RCCM, le droit du travail, la protection du consommateur, le crédit, la concurrence et le référentiel comptable SYCEBNL. Chaque cas indique un domaine, un point de contrôle, une ou plusieurs références attendues, et parfois un passage distracteur. Les références ont été contrôlées dans les fichiers locaux du corpus ; ce jeu n'a pas encore été validé par un expert juridique et ne certifie ni l'autorité ni la version en vigueur des textes. Il mesure le rappel, la précision@5, le rang réciproque, la présence de citations et la latence, sans noter la justesse d'une interprétation juridique ni la qualité d'une checklist. La recherche d'une question RCCM utilise aussi la hiérarchie des titres et sections pour prioriser les dispositions classées sous l'immatriculation ; ce signal améliore le classement, mais ne valide pas leur applicabilité :
+The benchmark `data/evaluation/legal_retrieval.json` contains 12 documentary-review questions covering RCCM, labor law, consumer protection, credit, competition, and the SYCEBNL accounting framework. Each case specifies a domain, an audit focus, one or more expected references, and sometimes a distractor passage. References were checked against files in the local corpus, but the benchmark has not been reviewed by a legal expert and does not certify the authority or current validity of the cited texts. It measures recall, precision@5, reciprocal rank, citation coverage, and latency; it does not assess legal interpretation or checklist quality. The RCCM question also uses title and section hierarchy to prioritize provisions classified under registration. This ranking signal does not validate whether a provision applies:
 
 ```bash
 python -m src.app evaluate-search data/evaluation/legal_retrieval.json --top-k 5
 ```
 
-L'évaluation utilise par défaut le périmètre des textes juridiques, hors doctrine et jurisprudence CCJA ; `--source-scope all` permet de changer ce périmètre. Cette mesure est un point de départ FTS, pas une preuve de qualité générale. Les questions, références attendues et distracteurs doivent encore être revus par un professionnel du droit avant de servir de référence. Les points de contrôle sont des axes de recherche, pas une checklist réglementaire exhaustive ou validée.
+Evaluation defaults to legal texts, excluding doctrine and CCJA case law; use `--source-scope all` to change the scope. This is an initial FTS benchmark, not proof of general search quality. A legal professional should review the questions, expected references, and distractors before they are used as ground truth. Audit focuses are research prompts, not exhaustive or validated regulatory checklists.
 
-### Activer la recherche vectorielle locale
+### Enable local vector search
 
-Le parcours FTS reste le défaut. Pour calculer localement les vecteurs des passages, installer les dépendances, puis reconstruire l'index avec le modèle multilingue Sentence Transformers (384 dimensions) :
+FTS remains the default. To calculate passage vectors locally, install the dependencies and rebuild the index with the multilingual Sentence Transformers model (384 dimensions):
 
 ```bash
 pip install -r requirements.txt
 python -m src.app build-index --vector-model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 ```
 
-Le premier lancement télécharge les poids du modèle depuis Hugging Face ; l'encodage des documents et des requêtes s'exécute ensuite sur CPU. Les vecteurs sont conservés dans la base SQLite locale. Le choix du mode reste explicite :
+The first run downloads the model weights from Hugging Face; document and query encoding then runs on the CPU. Vectors are stored in the local SQLite database. Select the retrieval mode explicitly:
 
 ```bash
 python -m src.app ask "Quel texte porte le Code électoral camerounais ?" --retrieval-mode fts
@@ -359,25 +368,25 @@ python -m src.app ask "Quel identifiant commercial doit apparaître dans un avis
 python -m src.app evaluate-search data/evaluation/legal_retrieval.json --retrieval-mode hybrid
 ```
 
-Le mode hybride fusionne les classements lexical et vectoriel par Reciprocal Rank Fusion ; les scores bruts des deux moteurs ne sont pas comparables. La recherche vectorielle ne génère pas de réponse : les résultats restent des extraits de documents avec leurs citations. Le modèle local n'est pas encore évalué sur un benchmark validé par un juriste.
+Hybrid mode combines lexical and vector rankings using Reciprocal Rank Fusion; the raw scores from the two engines are not comparable. Vector search does not generate an answer: results remain cited document excerpts. The local model has not yet been evaluated on a benchmark validated by a lawyer.
 
-### Lancer un scénario de revue progressive
+### Run a progressive review scenario
 
 ```bash
 python -m src.app audit data/scenarios/cameroon_company_document_review.json
 ```
 
-Le scénario d'exemple transmet un dossier initial, puis une pièce complémentaire. Les événements sont évalués dans l'ordre ; les pièces manquantes sont celles déclarées par le scénario, et non une conclusion de non-conformité légale. En CLI, Ollama rédige si des sources ont été retrouvées une analyse à partir de la question, des faits, des pièces déclarées et des éléments attendus. Le rendu Markdown suit un template stable : contrôle, analyse assistée à valider, pièces manquantes, sources juridiques, éclairage doctrinal séparé, incertitudes et prochaines étapes. `--extractive` désactive la génération. Le rapport JSON et son journal JSONL sont écrits localement dans `data/audits/`.
+The example scenario provides an initial case file followed by a supplementary document. Events are evaluated in order; missing documents are defined by the scenario and do not establish legal non-compliance. In the CLI, if sources are found, Ollama drafts an analysis from the question, facts, declared documents, and expected evidence. The Markdown report follows a stable template: control, AI-assisted analysis for review, missing documents, legal sources, separate doctrinal context, uncertainties, and next steps. `--extractive` disables generation. The JSON report and JSONL log are written locally to `data/audits/`.
 
-### Consulter les relations CCJA indexées
+### Inspect indexed CCJA relations
 
 ```bash
 python -m src.app graph OHADA-CCJA-00000
 ```
 
-Ces relations sont celles présentes dans le corpus importé ; elles ne sont pas une interprétation juridique autonome.
+These are relations present in the imported corpus; they are not an independent legal interpretation.
 
-La reconstruction de l'index crée aussi un graphe documentaire local : documents, sections, hiérarchie des titres et références explicites entre articles d'un même document. La recherche peut compléter un résultat principal par les articles qu'il cite lorsque la liste de résultats n'est pas déjà remplie. Ce graphe ne déduit pas de relations juridiques absentes du texte.
+Index reconstruction also creates a local document graph: documents, sections, title hierarchy, and explicit references between articles in the same document. Search may add articles cited by a main result when the result list is not already full. The graph does not infer legal relationships absent from the source text.
 
 ```bash
 python -m src.app build-index
@@ -385,7 +394,7 @@ python -m src.app graph-neighbors ohada-acte-uniforme-2010-droit-commercial-c554
   --section-id ohada-acte-uniforme-2010-droit-commercial-c554eccc-livre-2-titre-2-chapitre-1-section-2-article-47
 ```
 
-Après une mise à jour du code, relancer `build-index` pour créer le graphe dans la base locale existante.
+After updating the code, rerun `build-index` to create the graph in the existing local database.
 
 ### Tests
 
@@ -393,34 +402,34 @@ Après une mise à jour du code, relancer `build-index` pour créer le graphe da
 python -m unittest discover -s tests
 ```
 
-## Livrables de la compétition
+## Hackathon deliverables
 
-Selon la [page officielle du hackathon](https://aiforgood.itu.int/event/ai-for-good-sandbox-hackathon-united-arab-emirates/), les éléments de soumission comprennent :
+According to the [official hackathon page](https://aiforgood.itu.int/event/ai-for-good-sandbox-hackathon-united-arab-emirates/), submission materials include:
 
-1. un rapport technique de cinq pages maximum ;
-2. le dépôt GitHub du projet ;
-3. une base de connaissances contenant politiques, réglementations et stratégies ;
-4. facultativement, une vidéo de démonstration de sept minutes maximum (requise pour les équipes présélectionnées selon la page).
+1. A technical report of no more than five pages.
+2. The project GitHub repository.
+3. A knowledge base containing policies, regulations, and strategies.
+4. Optionally, a demonstration video of no more than seven minutes (required for shortlisted teams, according to the page).
 
-Le code de création de la base, la base elle-même, les rapports et la démonstration devront être préparés et vérifiés avant soumission. Consulter la page officielle pour les dates, modalités, règles d'équipe et éventuelles mises à jour.
+The knowledge-base build code, the knowledge base itself, reports, and the demonstration must be prepared and checked before submission. Consult the official page for deadlines, procedures, team rules, and updates.
 
-## Références
+## References
 
 - [AI for Good Sandbox Hackathon – United Arab Emirates](https://aiforgood.itu.int/event/ai-for-good-sandbox-hackathon-united-arab-emirates/)
-- [Recommandation ITU-T Y.3172](https://www.itu.int/rec/T-REC-Y.3172/en)
+- [ITU-T Recommendation Y.3172](https://www.itu.int/rec/T-REC-Y.3172/en)
 - [ITU AI Readiness Framework](https://www.itu.int/dms_pub/itu-t/opb/ai4g/T-AI4G-AI4GOOD-2025-6-PDF-E.pdf)
 - [ITU AI for Good Lab](https://aiforgood.itu.int/)
 
-## Équipe
+## Team
 
-**Team leader :** BOKOU-BOUNA-ANGE-LARISSA — University of Yaoundé I, Cameroon
+**Team leader:** BOKOU-BOUNA-ANGE-LARISSA — University of Yaoundé I, Cameroon
 
-**Contact :** [larissa.bokou@facsciences-uy1.cm](mailto:larissa.bokou@facsciences-uy1.cm)
+**Contact:** [larissa.bokou@facsciences-uy1.cm](mailto:larissa.bokou@facsciences-uy1.cm)
 
-**Membres**
+**Members**
 - NANGMO FEULFACK ANNICK — Member 2 — [duplusse.nangmo@facsciences-uy1.cm](mailto:duplusse.nangmo@facsciences-uy1.cm)
 - DJATCHE-NKAMGANG SYLVANO — Member 3 — [sylvano.djatche-nkamgang@facsciences-uy1.cm](mailto:sylvano.djatche-nkamgang@facsciences-uy1.cm)
 
-**Mentor :** Pr Paulin Yonta Melatagia — [paulinyonta@gmail.com](mailto:paulinyonta@gmail.com)
+**Mentor:** Professor Paulin Yonta Melatagia — [paulinyonta@gmail.com](mailto:paulinyonta@gmail.com)
 
-**GitHub :** [Concordia-CM/Concordia](https://github.com/Concordia-CM/Concordia)
+**GitHub:** [Concordia-CM/Concordia](https://github.com/Concordia-CM/Concordia)

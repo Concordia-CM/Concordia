@@ -46,7 +46,7 @@ _STOP_WORDS = {
 }
 
 RetrievalMode = Literal["fts", "vector", "hybrid"]
-SourceScope = Literal["legal_texts", "case_law", "doctrine", "all"]
+SourceScope = Literal["legal_texts", "case_law", "doctrine", "global_policy", "all"]
 
 
 _SOURCE_SCOPE_PREDICATES: dict[SourceScope, str] = {
@@ -63,6 +63,15 @@ _SOURCE_SCOPE_PREDICATES: dict[SourceScope, str] = {
         "json_extract(c.metadata_json, '$.document.document_category'), "
         "''"
         ") = 'doctrine_or_manual'"
+    ),
+    "global_policy": (
+        "AND c.entity_type != 'CCJA_Decision' "
+        "AND lower(COALESCE("
+        "json_extract(c.metadata_json, '$.document.geographic_scope'), "
+        "json_extract(c.metadata_json, '$.document.jurisdiction'), "
+        "json_extract(c.metadata_json, '$.document.scope'), "
+        "''"
+        ")) IN ('global', 'international', 'worldwide', 'multilateral')"
     ),
     "all": "",
 }
