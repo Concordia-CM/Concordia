@@ -2,119 +2,21 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
-from datetime import datetime, timezone
-from uuid import uuid4
 
 import streamlit as st
 
 from config.settings import get_settings
-from src.agents.auditor_agent import AuditorAgent
-from src.agents.legal_policy_agent import LegalPolicyAgent
 from src.knowledge.index import KnowledgeBase
+from src.web.audit_workflow import audit_fingerprint, create_audit_report
 from src.web.document_extraction import (
     MAX_DOCUMENT_BYTES,
     MAX_TOTAL_UPLOAD_BYTES,
     ExtractedDocument,
     extract_document,
 )
-from src.web.checklists import ChecklistTemplate, load_accounting_checklist
-
-
-def _fingerprint(
-    documents: list[ExtractedDocument],
-    questions: list[str],
-    evidence: list[str],
-    facts: str,
-    checklist_control_ids: list[str] | None = None,
-) -> str:
-    digest = hashlib.sha256()
-    for document in documents:
-        digest.update(document.name.encode("utf-8"))
-        digest.update(document.text.encode("utf-8"))
-    digest.update(json.dumps(questions, ensure_ascii=False).encode("utf-8"))
-    digest.update(json.dumps(evidence, ensure_ascii=False).encode("utf-8"))
-    digest.update(facts.encode("utf-8"))
-    digest.update(
-        json.dumps(checklist_control_ids or [], ensure_ascii=False).encode("utf-8")
-    )
-    return digest.hexdigest()
-
-
-def _create_report(
-    knowledge_base: KnowledgeBase,
-    documents: list[ExtractedDocument],
-    questions: list[str],
-    evidence_lists: list[list[str]],
-    facts: list[str],
-    checklist: ChecklistTemplate | None = None,
-    checklist_control_ids: list[str] | None = None,
-) -> dict[str, object]:
-    legal_agent = LegalPolicyAgent(knowledge_base)
-    auditor = AuditorAgent(legal_agent)
-    document_contents: dict[str, str] = {}
-    document_names: list[str] = []
-    for document in documents:
-        name = document.name
-        suffix = 2
-        while name in document_contents:
-            name = f"{document.name} ({suffix})"
-            suffix += 1
-        document_names.append(name)
-        document_contents[name] = document.text
-
-    checks = [
-        auditor.assess_check(
-            {
-                "check_id": (
-                    checklist_control_ids[index - 1]
-                    if checklist_control_ids
-                    else f"check-{index}"
-                ),
-                "question": question,
-                "expected_evidence": evidence_lists[index - 1],
-            },
-            facts=facts,
-            documents_received=document_names,
-            document_contents=document_contents,
-        )
-        for index, question in enumerate(questions, start=1)
-    ]
-    now = datetime.now(timezone.utc).isoformat()
-    return {
-        "audit_id": str(uuid4()),
-        "title": "Revue documentaire — dossier d'entreprise OHADA",
-        "jurisdiction": "Cameroun",
-        "started_at": now,
-        "completed_at": now,
-        "assessment": "human_review_required",
-        "checklist": (
-            checklist.report_metadata(checklist_control_ids or [])
-            if checklist
-            else None
-        ),
-        "documents": [
-            {
-                "name": name,
-                "page_count": document.page_count,
-                "ocr_pages": list(document.ocr_pages),
-                "warnings": list(document.warnings),
-            }
-            for name, document in zip(document_names, documents)
-        ],
-        "facts_reported": facts,
-        "checks": checks,
-        "limitations": [
-            "Les originaux et textes extraits restent en mémoire et ne sont pas ajoutés "
-            "à l'index juridique ni envoyés à un service externe.",
-            "Le contrôle de présence des pièces est lexical ; il ne valide ni leur "
-            "authenticité, ni leur complétude, ni leur conformité juridique.",
-            "Les références retrouvées et les résultats doivent être vérifiés par un "
-            "professionnel qualifié.",
-        ],
-    }
+from src.web.checklists import load_accounting_checklist
 
 
 def main() -> None:
@@ -122,11 +24,14 @@ def main() -> None:
     st.title("Concordia — revue documentaire")
     st.caption("Prototype local d'aide à l'audit documentaire OHADA — Cameroun.")
     st.warning(
-        "Confidentialité : cette version n'envoie aucun document à Ollama ou au cloud. "
-        "Les fichiers et leur texte sont traités localement en mémoire, sans écriture "
-        "persistante par Concordia, et ne sont pas ajoutés au corpus juridique. "
-        "Choisis ci-dessous s'ils restent en mémoire jusqu'à la fin de la session ou "
-        "s'ils sont supprimés après la revue. Aucun service cloud n'est configuré."
+        "Confidentialité : les fichiers et leur texte sont traités localement en mémoire "
+        "et ne sont pas ajoutés au corpus juridique. Si tu actives l'analyse Ollama, "
+        "la question, les noms de fichiers, les faits et éléments attendus ainsi que les "
+        "extraits juridiques retrouvés peuvent être transmis au serveur configuré ; la "
+        "génération ne démarre que si des sources juridiques sont retrouvées. Le texte "
+        "intégral des fichiers déposés n'est pas transmis. Vérifie l'adresse Ollama avant "
+        "d'activer cette option. Choisis ci-dessous s'ils restent en mémoire jusqu'à la "
+        "fin de la session ou s'ils sont supprimés après la revue."
     )
     st.info(
         "Ce prototype vérifie des éléments documentaires et retrouve des sources. "
@@ -236,6 +141,7 @@ def main() -> None:
     questions: list[str] = []
     expected_evidence: list[list[str]] = []
     facts_text = ""
+    generate_analysis = True
     checklist_acknowledged = True
     with st.form("audit-form"):
         if checklist_mode == "Préparation comptable indicative":
@@ -295,8 +201,23 @@ def main() -> None:
             key="audit-facts",
         )
         consent = st.checkbox(
-            "Je confirme que ces documents peuvent être traités localement pour cet audit. "
-            "Je comprends qu'aucune analyse cloud n'est disponible dans cette version."
+            "Je confirme que ces documents peuvent être traités pour cet audit. "
+            "Leur texte intégral n'est pas transmis à Ollama ; si l'analyse IA est activée "
+            "et que des sources juridiques sont retrouvées, la question, leurs noms, les "
+            "faits déclarés, les éléments attendus et les extraits retrouvés peuvent être "
+            "envoyés au serveur Ollama configuré."
+        )
+        generate_analysis = st.checkbox(
+            "Rédiger une analyse avec le modèle Ollama configuré",
+            value=True,
+            help=(
+                "Si des sources juridiques sont retrouvées, la génération Ollama pourra "
+                "transmettre la question, les noms de fichiers, les faits et éléments "
+                "attendus ainsi que les passages juridiques retrouvés, pas le texte "
+                "intégral des fichiers déposés. "
+                "Vérifie CONCORDIA_OLLAMA_BASE_URL avant d'activer cette option ; par défaut, "
+                "le serveur est attendu sur cette machine."
+            ),
         )
         submitted = st.form_submit_button("Lancer la revue documentaire")
 
@@ -316,7 +237,7 @@ def main() -> None:
             st.error("Chaque contrôle doit contenir une question.")
         else:
             try:
-                report = _create_report(
+                report = create_audit_report(
                     KnowledgeBase(get_settings().database_path),
                     documents,
                     [question.strip() for question in questions],
@@ -330,27 +251,30 @@ def main() -> None:
                     checklist_control_ids=[
                         control.control_id for control in selected_controls
                     ],
+                    use_llm=generate_analysis,
                 )
                 st.session_state["audit_report"] = report
                 st.session_state["audit_inputs_cleared"] = False
-                st.session_state["audit_fingerprint"] = _fingerprint(
+                st.session_state["audit_fingerprint"] = audit_fingerprint(
                     documents,
                     questions,
                     ["\n".join(items) for items in expected_evidence],
                     facts_text,
                     [control.control_id for control in selected_controls],
+                    generate_analysis,
                 )
             except (OSError, RuntimeError, sqlite3.Error, ValueError) as error:
                 st.error(f"Impossible d'exécuter la revue : {error}")
 
     report = st.session_state.get("audit_report")
     if isinstance(report, dict):
-        current_fingerprint = _fingerprint(
+        current_fingerprint = audit_fingerprint(
             documents,
             questions,
             ["\n".join(items) for items in expected_evidence],
             facts_text,
             [control.control_id for control in selected_controls],
+            generate_analysis,
         )
         inputs_cleared = st.session_state.get("audit_inputs_cleared", False)
         if (
@@ -363,6 +287,9 @@ def main() -> None:
             for check in report["checks"]:
                 st.markdown(f"**{check['question']}**")
                 st.write(f"Constat documentaire : {check['finding']}")
+                if check.get("analysis"):
+                    st.markdown("**Analyse assistée par IA (à valider)**")
+                    st.write(check["analysis"])
                 if check["evidence_found_in_documents"]:
                     st.write(
                         "Éléments retrouvés par correspondance textuelle : "
