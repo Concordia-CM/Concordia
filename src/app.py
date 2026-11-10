@@ -61,16 +61,25 @@ def _parser(settings: Settings | None = None) -> argparse.ArgumentParser:
     ask.add_argument("--retrieval-mode", choices=("fts", "vector", "hybrid"), default="fts")
     ask.add_argument(
         "--source-scope",
-        choices=("legal_texts", "case_law", "all"),
+        choices=("legal_texts", "case_law", "doctrine", "all"),
         default="legal_texts",
-        help="Limiter la recherche aux textes, à la jurisprudence CCJA ou à toutes les sources.",
+        help=(
+            "Limiter la recherche aux textes, à la jurisprudence CCJA, à la doctrine "
+            "ou à toutes les sources."
+        ),
     )
-    ask.add_argument("--generate", action="store_true", help="Générer une synthèse sourcée avec Ollama.")
+    ask.add_argument(
+        "--include-doctrine",
+        action="store_true",
+        help="Afficher séparément les passages doctrinaux comme éclairage, jamais comme obligation.",
+    )
+    _add_generation_options(ask)
 
     audit = commands.add_parser("audit", help="Exécuter les événements d'un scénario.")
     audit.add_argument("scenario", type=Path)
     audit.add_argument("--db", type=Path, default=app_settings.database_path)
     audit.add_argument("--output-dir", type=Path, default=Path("data/audits"))
+    _add_generation_options(audit)
 
     route = commands.add_parser(
         "route",
@@ -91,16 +100,29 @@ def _parser(settings: Settings | None = None) -> argparse.ArgumentParser:
     route.add_argument("--retrieval-mode", choices=("fts", "vector", "hybrid"), default="fts")
     route.add_argument(
         "--source-scope",
-        choices=("legal_texts", "case_law", "all"),
+        choices=("legal_texts", "case_law", "doctrine", "all"),
         default="legal_texts",
         help="Périmètre de sources pour la recherche juridique ou institutionnelle.",
     )
-    route.add_argument("--generate", action="store_true", help="Générer une synthèse sourcée avec Ollama.")
+    route.add_argument(
+        "--include-doctrine",
+        action="store_true",
+        help="Afficher séparément les passages doctrinaux comme éclairage, jamais comme obligation.",
+    )
+    _add_generation_options(route)
     route.add_argument("--output-dir", type=Path, default=Path("data/audits"))
 
     graph = commands.add_parser("graph", help="Afficher les relations CCJA indexées.")
     graph.add_argument("record_id", help="Identifiant d'une décision, par exemple OHADA-CCJA-00000.")
     graph.add_argument("--db", type=Path, default=app_settings.database_path)
+
+    graph_neighbors = commands.add_parser(
+        "graph-neighbors",
+        help="Afficher la structure documentaire et les articles cités d'une source.",
+    )
+    graph_neighbors.add_argument("record_id", help="Identifiant du document indexé.")
+    graph_neighbors.add_argument("--section-id", help="Limiter les relations à un article ou une section.")
+    graph_neighbors.add_argument("--db", type=Path, default=app_settings.database_path)
 
     evaluate = commands.add_parser(
         "evaluate-search",
@@ -112,17 +134,35 @@ def _parser(settings: Settings | None = None) -> argparse.ArgumentParser:
     evaluate.add_argument("--retrieval-mode", choices=("fts", "vector", "hybrid"), default="fts")
     evaluate.add_argument(
         "--source-scope",
-        choices=("legal_texts", "case_law", "all"),
+        choices=("legal_texts", "case_law", "doctrine", "all"),
         default="legal_texts",
         help="Périmètre des sources évaluées.",
     )
     return parser
 
 
+def _add_generation_options(parser: argparse.ArgumentParser) -> None:
+    generation = parser.add_mutually_exclusive_group()
+    generation.add_argument(
+        "--generate",
+        dest="generate",
+        action="store_true",
+        help="Générer une réponse narrative sourcée avec Ollama (défaut).",
+    )
+    generation.add_argument(
+        "--extractive",
+        dest="generate",
+        action="store_false",
+        help="Désactiver Ollama et afficher uniquement les passages retrouvés.",
+    )
+    parser.set_defaults(generate=True)
+
+
 def _print_source_scope(source_scope: str) -> None:
     labels = {
         "legal_texts": "textes juridiques (hors doctrine et jurisprudence CCJA)",
         "case_law": "jurisprudence CCJA",
+        "doctrine": "doctrine et manuels (éclairage non normatif)",
         "all": "toutes les sources indexées",
     }
     print(f"\nPérimètre des sources : {labels[source_scope]}")
@@ -167,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
                 retrieval_mode=args.retrieval_mode,
                 use_llm=args.generate,
                 source_scope=args.source_scope,
+                include_doctrine=args.include_doctrine,
             )
             print(result["answer"])
             _print_source_scope(args.source_scope)
@@ -179,7 +220,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not isinstance(route, DocumentAuditRequest):
                 raise RuntimeError("Le routeur n'a pas retourné un audit documentaire.")
-            report = run_scenario(route.scenario_path, knowledge_base, args.output_dir)
+            report = run_scenario(
+                route.scenario_path,
+                knowledge_base,
+                args.output_dir,
+                use_llm=args.generate,
+            )
             print(render_markdown(report))
             print(f"Rapport JSON : {report['report_path']}")
             print(f"Journal d'audit : {report['audit_log_path']}")
@@ -190,6 +236,7 @@ def main(argv: list[str] | None = None) -> int:
                     retrieval_mode=args.retrieval_mode,
                     use_llm=args.generate,
                     source_scope=args.source_scope,
+                    include_doctrine=args.include_doctrine,
                 )
                 print(result["answer"])
                 _print_source_scope(args.source_scope)
@@ -199,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
                     routed_request.scenario_path,
                     knowledge_base,
                     args.output_dir,
+                    use_llm=args.generate,
                 )
                 print(render_markdown(report))
                 print(f"Rapport JSON : {report['report_path']}")
@@ -216,6 +264,7 @@ def main(argv: list[str] | None = None) -> int:
                     retrieval_mode=args.retrieval_mode,
                     use_llm=args.generate,
                     source_scope=args.source_scope,
+                    include_doctrine=args.include_doctrine,
                 )
                 print(result["agent_result"]["summary"])
                 _print_source_scope(args.source_scope)
@@ -224,6 +273,12 @@ def main(argv: list[str] | None = None) -> int:
                 raise RuntimeError("Le routeur n'a retourné aucun parcours.")
         elif args.command == "graph":
             relations = knowledge_base.related(args.record_id)
+            print(json.dumps(relations, ensure_ascii=False, indent=2))
+        elif args.command == "graph-neighbors":
+            relations = knowledge_base.graph_neighborhood(
+                args.record_id,
+                section_id=args.section_id,
+            )
             print(json.dumps(relations, ensure_ascii=False, indent=2))
         elif args.command == "evaluate-search":
             cases = load_retrieval_cases(args.benchmark)

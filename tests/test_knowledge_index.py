@@ -97,9 +97,64 @@ class KnowledgeBaseTests(unittest.TestCase):
         first = self._build()
         second = self._build()
 
-        self.assertEqual(first, {"documents": 1, "chunks": 1, "relationships": 0})
+        self.assertEqual(
+            first,
+            {
+                "documents": 1,
+                "chunks": 1,
+                "relationships": 0,
+                "graph_nodes": 2,
+                "graph_edges": 1,
+            },
+        )
         self.assertEqual(second, first)
         self.assertEqual(len(self.knowledge_base.search("immatriculation société", limit=10)), 1)
+
+    def test_graph_indexes_document_structure_and_explicit_article_citations(self) -> None:
+        record_path = self.processed_dir / "test-law.json"
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        record["sections"][0]["content"] += " Voir également l'article 8."
+        record["sections"].append(
+            {
+                "section_id": "article-8",
+                "article_number": "8",
+                "title": "Article 8",
+                "content": "Disposition complémentaire.",
+                "hierarchy_path": [
+                    {"type": "Chapter", "number": "1", "title": "Règles générales"}
+                ],
+            }
+        )
+        record_path.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+
+        result = self._build()
+        neighborhood = self.knowledge_base.graph_neighborhood(
+            "test-law",
+            section_id="article-7",
+        )
+
+        self.assertGreater(result["graph_nodes"], 2)
+        self.assertIn(
+            ("cites_article", "article-8", "article 8"),
+            {
+                (
+                    edge["relation_type"],
+                    edge["target_section_id"],
+                    edge["evidence"],
+                )
+                for edge in neighborhood
+            },
+        )
+        search_hits = self.knowledge_base.search(
+            "immatriculation registre commerce",
+            limit=3,
+        )
+        self.assertEqual(search_hits[0].section_id, "article-7")
+        self.assertEqual(search_hits[1].section_id, "article-8")
+        self.assertEqual(
+            search_hits[1].metadata["retrieval_path"],
+            "knowledge_graph:cites_article",
+        )
 
     def test_answer_is_explicit_about_no_generated_legal_opinion(self) -> None:
         self._build()
@@ -353,6 +408,10 @@ class KnowledgeBaseTests(unittest.TestCase):
             "dispositions immatriculation RCCM société",
             source_scope="all",
         )
+        doctrine_hits = self.knowledge_base.search(
+            "dispositions immatriculation RCCM société",
+            source_scope="doctrine",
+        )
         class IdenticalEncoder:
             def encode(self, sentences: list[str], **kwargs: object) -> np.ndarray:
                 del kwargs
@@ -381,6 +440,13 @@ class KnowledgeBaseTests(unittest.TestCase):
         )
         self.assertTrue(case_hits)
         self.assertTrue(all(hit.entity_type == "CCJA_Decision" for hit in case_hits))
+        self.assertTrue(doctrine_hits)
+        self.assertTrue(
+            all(
+                hit.metadata["document"].get("document_category") == "doctrine_or_manual"
+                for hit in doctrine_hits
+            )
+        )
         self.assertGreater(len(all_hits), len(legal_hits))
         self.assertTrue(vector_hits)
         self.assertTrue(

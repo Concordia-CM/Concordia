@@ -4,8 +4,8 @@ __pycache__/
 .pytest_cache/
 .env
 *.log
-data/knowledge_base/
 data/audits/
+data/raw_legal_docs/
 # Données brutes et PDF (à ne jamais versionner)
 data/raw_legal_docs/
 *.pdf
@@ -17,4 +17,5 @@ data/raw_legal_docs/
 venv/
 __pycache__/
 *.pyc
-.DS_Store
+.DS_Storedata/raw_legal_docs/
+data/knowledge_base/

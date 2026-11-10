@@ -144,8 +144,9 @@ class IntentRouterTests(unittest.TestCase):
             mandate="Examiner les obligations de déclaration.",
             jurisdiction="Cameroun",
             retrieval_mode="fts",
-            use_llm=False,
+            use_llm=True,
             source_scope="legal_texts",
+            include_doctrine=False,
         )
         knowledge_base_class.assert_called_once()
 
@@ -167,6 +168,10 @@ class IntentRouterTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn("Réponse sourcée", output.getvalue())
+        legal_agent_class.return_value.answer.assert_called_once()
+        self.assertTrue(
+            legal_agent_class.return_value.answer.call_args.kwargs["use_llm"]
+        )
         knowledge_base_class.assert_called_once()
 
     @patch("src.app.KnowledgeBase")

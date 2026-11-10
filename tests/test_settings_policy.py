@@ -7,6 +7,7 @@ from pathlib import Path
 
 from config.settings import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, Settings
 from src.agents.contracts import AgentInput, AgentResult, SourceReference, SourcedClaim
+from src.agents.auditor_agent import AuditorAgent
 from src.agents.institutional_agent import InstitutionalAgent
 from src.agents.legal_policy_agent import LegalPolicyAgent
 from src.knowledge.index import KnowledgeBase
@@ -79,6 +80,26 @@ class LegalPolicyTests(unittest.TestCase):
             ],
         }
         (processed / "law.json").write_text(json.dumps(record), encoding="utf-8")
+        doctrine = {
+            "record_id": "test-doctrine",
+            "document_title": "Guide pratique d'audit OHADA",
+            "source_file": "guide-audit.pdf",
+            "metadata": {"document_category": "doctrine_or_manual"},
+            "sections": [
+                {
+                    "section_id": "section-audit",
+                    "content": (
+                        "Toute société est immatriculée au registre du commerce. "
+                        "Un auditeur peut vérifier les justificatifs."
+                    ),
+                    "metadata": {"document_category": "doctrine_or_manual"},
+                }
+            ],
+        }
+        (processed / "doctrine.json").write_text(
+            json.dumps(doctrine),
+            encoding="utf-8",
+        )
         self.knowledge_base = KnowledgeBase(self.root / "index.sqlite3")
         self.knowledge_base.build(
             processed,
@@ -185,6 +206,8 @@ class LegalPolicyTests(unittest.TestCase):
 
     def test_legal_agent_routes_generated_claims_through_policy(self) -> None:
         class FakeOllamaClient:
+            received_sources: tuple[SourceReference, ...] = ()
+
             def generate_claims(
                 self,
                 question: str,
@@ -192,6 +215,7 @@ class LegalPolicyTests(unittest.TestCase):
             ) -> tuple[SourcedClaim, ...]:
                 if question != "société immatriculée":
                     raise AssertionError("L'agent a transmis une question inattendue.")
+                self.received_sources = sources
                 return (
                     SourcedClaim(
                         "La société doit être immatriculée.",
@@ -199,16 +223,151 @@ class LegalPolicyTests(unittest.TestCase):
                     ),
                 )
 
+        client = FakeOllamaClient()
         answer = LegalPolicyAgent(
             self.knowledge_base,
-            ollama_client=FakeOllamaClient(),
-        ).answer("société immatriculée", use_llm=True)
+            ollama_client=client,
+        ).answer("société immatriculée", use_llm=True, include_doctrine=True)
 
         self.assertEqual(answer["answer_mode"], "ollama_rag")
         self.assertEqual(answer["source_scope"], "legal_texts")
         self.assertIn("Sources :", answer["answer"])
+        self.assertIn("Fondements textuels", answer["answer"])
+        self.assertIn("Éclairage doctrinal", answer["answer"])
+        self.assertEqual(len(answer["doctrine_sources"]), 1)
+        self.assertTrue(
+            all(source.record_id != "test-doctrine" for source in client.received_sources)
+        )
         self.assertEqual(answer["policy"]["decision"], "human_review_required")
-        self.assertEqual(answer["policy"]["verified_source_count"], 1)
+        self.assertEqual(answer["policy"]["verified_source_count"], 2)
+
+    def test_doctrine_is_separate_and_never_used_for_generated_legal_claims(self) -> None:
+        class FakeOllamaClient:
+            def generate_claims(
+                self,
+                question: str,
+                sources: tuple[SourceReference, ...],
+            ) -> tuple[SourcedClaim, ...]:
+                raise AssertionError("La doctrine seule ne doit pas générer d'obligation.")
+
+        answer = LegalPolicyAgent(
+            self.knowledge_base,
+            ollama_client=FakeOllamaClient(),
+        ).answer(
+            "société immatriculée",
+            use_llm=True,
+            source_scope="doctrine",
+        )
+
+        self.assertEqual(answer["sources"], [])
+        self.assertEqual(len(answer["doctrine_sources"]), 1)
+        self.assertIn("sans valeur d'obligation juridique", answer["answer"])
+        self.assertEqual(answer["policy"]["decision"], "human_review_required")
+
+    def test_doctrine_remains_visible_when_ollama_cannot_form_a_claim(self) -> None:
+        class InsufficientOllamaClient:
+            def generate_claims(
+                self,
+                question: str,
+                sources: tuple[SourceReference, ...],
+            ) -> tuple[SourcedClaim, ...]:
+                del question, sources
+                return ()
+
+        answer = LegalPolicyAgent(
+            self.knowledge_base,
+            ollama_client=InsufficientOllamaClient(),
+        ).answer(
+            "société immatriculée",
+            use_llm=True,
+            include_doctrine=True,
+        )
+
+        self.assertEqual(answer["answer_mode"], "ollama_insufficient_sources")
+        self.assertIn("Éclairage doctrinal", answer["answer"])
+
+    def test_auditor_reports_doctrine_only_as_a_separate_lead(self) -> None:
+        result = AuditorAgent(LegalPolicyAgent(self.knowledge_base)).assess_check(
+            {
+                "id": "registration",
+                "question": "société immatriculée",
+                "expected_evidence": [],
+            },
+            facts=[],
+            documents_received=[],
+        )
+
+        self.assertEqual(len(result["sources"]), 1)
+        self.assertEqual(len(result["doctrine_sources"]), 1)
+        self.assertIn("ne prouvent pas", result["recommendations"][0])
+
+    def test_audit_generation_receives_facts_and_returns_a_templated_analysis(self) -> None:
+        class FakeAuditOllama:
+            prompt = ""
+
+            def generate_claims(
+                self,
+                question: str,
+                sources: tuple[SourceReference, ...],
+            ) -> tuple[SourcedClaim, ...]:
+                self.prompt = question
+                return (
+                    SourcedClaim(
+                        "Le passage retrouvé traite de l'immatriculation.",
+                        (sources[0].key,),
+                    ),
+                )
+
+        client = FakeAuditOllama()
+        assessment = AuditorAgent(
+            LegalPolicyAgent(self.knowledge_base, ollama_client=client)
+        ).assess_check(
+            {
+                "id": "registration",
+                "question": "société immatriculée",
+                "expected_evidence": ["Extrait RCCM"],
+            },
+            facts=["La société a commencé ses activités."],
+            documents_received=[],
+            use_llm=True,
+        )
+
+        self.assertIn("La société a commencé ses activités", client.prompt)
+        self.assertIn("Une pièce non déclarée ne prouve pas une violation", client.prompt)
+        self.assertIn("Le passage retrouvé traite", assessment["analysis"])
+        self.assertIn("Sources :", assessment["analysis"])
+
+    def test_institutional_agent_separates_doctrine_from_generated_sources(self) -> None:
+        class FakeInstitutionalClient:
+            received_sources: tuple[SourceReference, ...] = ()
+
+            def generate_claims(
+                self,
+                question: str,
+                sources: tuple[SourceReference, ...],
+            ) -> tuple[SourcedClaim, ...]:
+                self.received_sources = sources
+                return (
+                    SourcedClaim("Le texte prévoit une immatriculation.", (sources[0].key,)),
+                )
+
+        client = FakeInstitutionalClient()
+        answer = InstitutionalAgent(
+            self.knowledge_base,
+            ollama_client=client,
+        ).analyze(
+            question="société immatriculée",
+            institution="Autorité",
+            mandate="Examiner les règles.",
+            include_doctrine=True,
+            use_llm=True,
+        )
+
+        self.assertEqual(len(answer["doctrine_sources"]), 1)
+        self.assertTrue(
+            all(source.record_id != "test-doctrine" for source in client.received_sources)
+        )
+        self.assertIn("Éclairage doctrinal", answer["agent_result"]["summary"])
 
     def test_legal_agent_blocks_unknown_generated_source_before_rendering(self) -> None:
         class InvalidReferenceClient:

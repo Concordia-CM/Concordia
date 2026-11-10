@@ -56,7 +56,8 @@ class DocumentExtractionTests(unittest.TestCase):
             def __init__(self) -> None:
                 pass
 
-            def answer(self, question: str) -> dict[str, object]:
+            def answer(self, question: str, **kwargs: object) -> dict[str, object]:
+                del kwargs
                 return {"question": question, "sources": []}
 
         result = AuditorAgent(FakeLegalAgent()).assess_check(
@@ -72,6 +73,35 @@ class DocumentExtractionTests(unittest.TestCase):
         self.assertEqual(result["evidence_found_in_documents"], ["Capital social"])
         self.assertEqual(result["missing_scenario_evidence"], [])
         self.assertEqual(result["finding"], "human_review_required")
+
+    def test_auditor_passes_context_to_llm_for_audit_analysis(self) -> None:
+        class FakeLegalAgent(LegalPolicyAgent):
+            def __init__(self) -> None:
+                self.kwargs: dict[str, object] = {}
+
+            def answer(self, question: str, **kwargs: object) -> dict[str, object]:
+                self.kwargs = kwargs
+                return {
+                    "question": question,
+                    "sources": [],
+                    "answer": "Analyse à valider.",
+                    "answer_mode": "ollama_rag",
+                }
+
+        legal_agent = FakeLegalAgent()
+        result = AuditorAgent(legal_agent).assess_check(
+            {
+                "question": "Le registre est-il à jour ?",
+                "expected_evidence": ["Registre des décisions"],
+            },
+            facts=["Dernière mise à jour en juin."],
+            documents_received=["registre.pdf"],
+            use_llm=True,
+        )
+
+        self.assertIs(legal_agent.kwargs["use_llm"], True)
+        self.assertIn("Dernière mise à jour en juin.", str(legal_agent.kwargs["analysis_context"]))
+        self.assertEqual(result["analysis"], "Analyse à valider.")
 
 
 if __name__ == "__main__":

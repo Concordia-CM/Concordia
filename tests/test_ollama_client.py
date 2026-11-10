@@ -57,6 +57,8 @@ class OllamaClientTests(unittest.TestCase):
         self.assertEqual(request["timeout"], self.settings.llm_timeout_seconds)
         self.assertIn("Toute société doit être immatriculée.", request["json"]["messages"][1]["content"])
         self.assertIn('"source_index": 1', request["json"]["messages"][1]["content"])
+        self.assertIn("français naturel", request["json"]["messages"][1]["content"])
+        self.assertIn("N'ajoute aucun fait", request["json"]["messages"][1]["content"])
 
     @patch("src.llm.ollama_client.requests.post")
     def test_rejects_claims_with_unknown_source_indices(self, post: MagicMock) -> None:

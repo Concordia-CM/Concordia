@@ -47,6 +47,15 @@ def render_markdown(report: dict[str, Any]) -> str:
                     "",
                 ]
             )
+            if check.get("analysis"):
+                lines.extend(
+                    [
+                        "**Analyse documentaire assistée par IA (à valider)**",
+                        "",
+                        str(check["analysis"]),
+                        "",
+                    ]
+                )
             policy = check.get("policy")
             if isinstance(policy, dict):
                 lines.extend(
@@ -62,6 +71,12 @@ def render_markdown(report: dict[str, Any]) -> str:
             if isinstance(institutional_analysis, dict):
                 institutional_result = institutional_analysis.get("agent_result", {})
                 if isinstance(institutional_result, dict):
+                    doctrine_sources = institutional_analysis.get("doctrine_sources", [])
+                    doctrine_keys = {
+                        (source.get("record_id"), source.get("section_id"))
+                        for source in doctrine_sources
+                        if isinstance(source, dict)
+                    }
                     lines.extend(
                         [
                             "#### Perspective institutionnelle déclarée",
@@ -77,10 +92,21 @@ def render_markdown(report: dict[str, Any]) -> str:
                     for uncertainty in institutional_result.get("uncertainties", []):
                         lines.append(f"- **Limite :** {uncertainty}")
                     if institutional_result.get("sources"):
-                        lines.append("- **Sources institutionnelles consultées :**")
+                        lines.append("- **Sources institutionnelles hors doctrine :**")
                         lines.extend(
                             f"  - {source['citation']}"
                             for source in institutional_result["sources"]
+                            if (source.get("record_id"), source.get("section_id"))
+                            not in doctrine_keys
+                        )
+                    if doctrine_sources:
+                        lines.append(
+                            "- **Éclairage doctrinal institutionnel (non normatif) :**"
+                        )
+                        lines.extend(
+                            f"  - {source['citation']}"
+                            for source in doctrine_sources
+                            if isinstance(source, dict)
                         )
                     lines.append("")
             if check["missing_scenario_evidence"]:
@@ -88,7 +114,7 @@ def render_markdown(report: dict[str, Any]) -> str:
                 lines.extend(f"- {item}" for item in check["missing_scenario_evidence"])
                 lines.append("")
             if check["sources"]:
-                lines.append("**Sources retrouvées**")
+                lines.append("**Sources juridiques retrouvées**")
                 for source in check["sources"]:
                     lines.extend(
                         [
@@ -97,7 +123,19 @@ def render_markdown(report: dict[str, Any]) -> str:
                         ]
                     )
                 lines.append("")
-            else:
+            if check.get("doctrine_sources"):
+                lines.append(
+                    "**Éclairage doctrinal (explications ou pistes, non normatif)**"
+                )
+                for source in check["doctrine_sources"]:
+                    lines.extend(
+                        [
+                            f"- **{source['citation']}**",
+                            f"  > {source['excerpt'] or source['text'][:600]}",
+                        ]
+                    )
+                lines.append("")
+            if not check["sources"] and not check.get("doctrine_sources"):
                 lines.extend(
                     [
                         "**Sources retrouvées :** aucune correspondance dans l'index.",
